@@ -1,0 +1,42 @@
+#!/bin/bash
+# ===================================================================#
+# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
+# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
+# This is free software: you are free to change and redistribute it. # 
+# There is NO WARRANTY, to the extent permitted by law.              #
+#                                                                    #
+# Version: 0.2                                                       #
+#====================================================================#
+
+
+PIS_DIR="/var/log/PIS"
+DIALOG_OK=0
+DIALOG_CANCEL=1
+DIALOG_ESC=255
+
+opcao=$( dialog  --stdout \
+--backtitle "Slackware Post-Install Scripts v0.2" \
+--title "Set Wheel Group" \
+--menu  "Select an option:" \
+0 0 0 \
+"1" "Activate the 'wheel' Group" \
+"2" "Deactivate the 'wheel' Group" )
+
+if [ $? -eq 0 ]; then
+	case $opcao in
+		"1")
+			sed -i "s/# \(%wheel ALL=(ALL:ALL) ALL\)/\1/" /etc/sudoers
+
+            echo "YES" > "$PIS_DIR/wheel_group"
+
+			dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "The 'Wheel' group has been activated!" 5 45
+			;;
+		"2")
+			sed -i "s/\(^%wheel ALL=(ALL:ALL) ALL\)/# \1/" /etc/sudoers
+
+            echo "NO" > "$PIS_DIR/wheel_group"
+			
+            dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "The 'Wheel' group has been deactivated!" 5 45 
+			;;
+	esac
+fi

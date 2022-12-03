@@ -1,0 +1,37 @@
+#!/bin/bash
+# ===================================================================#
+# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
+# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
+# This is free software: you are free to change and redistribute it. # 
+# There is NO WARRANTY, to the extent permitted by law.              #
+#                                                                    #
+# Version: 0.2                                                       #
+#====================================================================#
+
+
+PIS_DIR="/var/log/PIS"
+DIALOG_OK=0
+DIALOG_CANCEL=1
+DIALOG_ESC=255
+
+MAPS=$(find /usr/share/kbd/keymaps/ | grep ".map.gz" | sed "s/\(.*\/\)\(.*\.map\.gz\)/\'\2\' \'\'/" | sort | tr '\n' ' ')
+
+opcao=$(sh -c "dialog  --stdout \
+--backtitle \"Slackware Post-Install Scripts v0.2\" \
+--title \"Set Keyboard Map\" \
+--menu  \"Select a keyboard map for your system:\" \
+0 0 8 \
+$MAPS")
+status=$?
+[ $status -eq $DIALOG_CANCEL ] && exit 0
+[ $status -eq $DIALOG_ESC ] && exit 0
+
+if [ $status -eq 0 ]; then
+	sed -i "s/\(^ .*loadkeys\)\( .*\.map.*\)/\1 $opcao/" /etc/rc.d/rc.keymap
+	/usr/bin/loadkeys "$opcao"
+    
+    echo "$opcao" > "$PIS_DIR/keyboard_map"
+
+	dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "Keyboard map has been setted to '$opcao'!" 6 55
+
+fi

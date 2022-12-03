@@ -1,0 +1,40 @@
+#!/bin/bash
+# ===================================================================#
+# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
+# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
+# This is free software: you are free to change and redistribute it. # 
+# There is NO WARRANTY, to the extent permitted by law.              #
+#                                                                    #
+# Version: 0.2                                                       #
+#====================================================================#
+
+
+PIS_DIR="/var/log/PIS"
+DIALOG_OK=0
+DIALOG_CANCEL=1
+DIALOG_ESC=255
+
+MIRRORS=$(echo $(cat -n /etc/slackpkg/mirrors | sed -n "/15\.0/p" | sed -n "/:/p" | sed -n "s/# //p" | tail -n +2) )
+#echo $MIRRORS
+#exit 0
+OPCAO=$(sh -c "dialog  --stdout \
+--backtitle \"Slackware Post-Install Scripts v0.2\" \
+--title \"Slackpkg - Set Mirror:\" \
+--menu  \"Select a slackpkg mirror:\" \
+0 0 10 \
+$MIRRORS")
+status=$?
+[ $status -eq $DIALOG_CANCEL ] && exit 0
+[ $status -eq $DIALOG_ESC ] && exit 0
+
+if [ $status -eq 0 ]; then
+	sed -i "s/\(^http\)/# http/" /etc/slackpkg/mirrors
+	sed -i "s/\(^ftp\)/# ftp/" /etc/slackpkg/mirrors
+
+	sed -i "$OPCAO s/\(^# \)//" /etc/slackpkg/mirrors
+    
+    echo "$OPCAO" > "$PIS_DIR/slackpkg_mirror"
+
+	dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "New mirror has been setted to \n$(sed -n "$OPCAO p" /etc/slackpkg/mirrors)!" 6 0
+fi
+

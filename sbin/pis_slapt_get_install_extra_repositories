@@ -1,0 +1,91 @@
+#!/bin/bash
+# ===================================================================#
+# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
+# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
+# This is free software: you are free to change and redistribute it. # 
+# There is NO WARRANTY, to the extent permitted by law.              #
+#                                                                    #
+# Version: 0.2                                                       #
+#====================================================================#
+
+
+PIS_DIR="/var/log/PIS"
+DIALOG_OK=0
+DIALOG_CANCEL=1
+DIALOG_ESC=255
+
+dialog --stdout \
+--backtitle "Slackware Post-Install Scripts v0.2" \
+--title "Slapt-get - Install Extra Repositories" \
+--yesno "Would you like to continue installing third-party repositories for slapt-get?" \
+6 55 
+OPTION=$?
+
+if [ $OPTION -eq 0 ]
+then
+
+  VALUES=$(dialog --stdout \
+--backtitle "Slackware Post-Install Scripts v0.2" \
+--title "Slapt-get - Install Extra Repositories" \
+--checklist "Select the repositories you want to add:" \
+0 0 0 \
+"slackonly" "SlackOnly pre-built SBo package respository" off \
+"slackers" "Slackware Current Repository by Conraid"  off \
+"salixos" "Salix OS repository" off \
+"salixextra" "Salix OS extra respository" off \
+"slackel" "Slackel OS repository" off \
+"slint" "Slint OS repository" off \
+)
+
+  status=$?
+  reg=($VALUES)
+  if [ $status -eq 0 ]; then if [ ${#reg[@]} -ne 0 ]; then 
+    for i in ${reg[@]}; 
+    do 
+      if [ "$i" == "slackonly" ]
+      then
+        flag=$(echo $(grep -e "^SOURCE=https:\/\/packages\.slackonly" /etc/slapt-get/slapt-getrc &> /dev/null; echo $?))
+        [ "$flag" -ne 0 ] && echo "SOURCE=https://packages.slackonly.com/pub/packages/15.0-x86_64/" >> /etc/slapt-get/slapt-getrc 
+        continue
+      fi
+      if [ "$i" == "slackers" ]
+      then
+        flag=$(echo $(grep -e "^SOURCE=https:\/\/slack\.conraid" /etc/slapt-get/slapt-getrc &> /dev/null; echo $?))
+        [ "$flag" -ne 0 ] && echo "SOURCE=https://slack.conraid.net/repository/slackware64-current/" >> /etc/slapt-get/slapt-getrc 
+        continue
+      fi
+      if [ "$i" == "salixos" ]
+      then
+        flag=$(echo $(grep -e "^SOURCE=https:\/\/download\.salixos\.org\/x86_64\/15\.0\/$" /etc/slapt-get/slapt-getrc &> /dev/null; echo $?))
+        [ "$flag" -ne 0 ] && echo "SOURCE=https://download.salixos.org/x86_64/15.0/" >> /etc/slapt-get/slapt-getrc 
+        continue
+      fi
+      if [ "$i" == "salixextra" ]
+      then
+        flag=$(echo $(grep -e "^SOURCE=https:\/\/download\.salixos\.org\/x86_64\/extra-15\.0\/" /etc/slapt-get/slapt-getrc &> /dev/null; echo $?))
+        [ "$flag" -ne 0 ] && echo "SOURCE=https://download.salixos.org/x86_64/extra-15.0/" >> /etc/slapt-get/slapt-getrc 
+        continue
+      fi
+      if [ "$i" == "slackel" ]
+      then
+        flag=$(echo $(grep -e "^SOURCE=http:\/\/www\.slackel" /etc/slapt-get/slapt-getrc &> /dev/null; echo $?))
+        [ "$flag" -ne 0 ] && echo "SOURCE=http://www.slackel.gr/repo/x86_64/current/" >> /etc/slapt-get/slapt-getrc 
+        continue
+      fi
+      if [ "$i" == "slint" ]
+      then
+        flag=$(echo $(grep -e "^SOURCE=https:\/\/slackware\.uk\/slint" /etc/slapt-get/slapt-getrc &> /dev/null; echo $?))
+        [ "$flag" -ne 0 ] && echo "SOURCE=https://slackware.uk/slint/x86_64/slint-15.0/" >> /etc/slapt-get/slapt-getrc 
+        continue
+      fi
+    done
+    slapt-get --update
+  fi
+  fi
+  
+  echo "$VALUES" > "$PIS_DIR/slapt_get_extra_repo"
+
+  dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "Third-party repositories for slapt-get have been installed with success!" 6 55
+
+fi
+

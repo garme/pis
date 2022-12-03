@@ -1,0 +1,53 @@
+#!/bin/bash
+# ===================================================================#
+# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
+# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
+# This is free software: you are free to change and redistribute it. # 
+# There is NO WARRANTY, to the extent permitted by law.              #
+#                                                                    #
+# Version: 0.2                                                       #
+#====================================================================#
+
+
+PIS_DIR="/var/log/PIS"
+DIALOG_OK=0
+DIALOG_CANCEL=1
+DIALOG_ESC=255
+
+while [ 1 ] 
+do
+
+OPCAO=$(sh -c "dialog  --stdout \
+--backtitle \"Slackware Post-Install Scripts v0.2\" \
+--title \"Slapt-get Package Manager\" \
+--menu \"Which option would you like?\"  \
+0 0 0  \
+\"1\"  \"Install 'slapt-get'\" \
+\"2\"  \"Install 'slapt-get' extra repositories?\" \
+\"3\"  \"Install 'Gslapt' (GTK-based GUI for 'slapt-get')\" \
+\"4\"  \"Install 'slapt-src'\" \
+\"5\"  \"Install 'slapt-notifier-notifier'\"\
+")
+status=$?
+[ $status -eq $DIALOG_CANCEL ] && exit 0
+[ $status -eq $DIALOG_ESC ] && exit 0
+
+case $OPCAO in
+"1")
+	./pis_slapt_get_install
+	;;
+"2")
+	./pis_slapt_get_install_extra_repositories
+	;;
+"3")
+	./pis_slapt_get_install_gslapt
+	;;
+"4")
+	./pis_slapt_src_install
+	;;
+"5")
+	./pis_slapt_update_notifier_install
+	;;
+esac
+
+done

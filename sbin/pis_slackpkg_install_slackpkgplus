@@ -1,0 +1,60 @@
+#!/bin/bash
+# ===================================================================#
+# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
+# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
+# This is free software: you are free to change and redistribute it. # 
+# There is NO WARRANTY, to the extent permitted by law.              #
+#                                                                    #
+# Version: 0.2                                                       #
+#====================================================================#
+
+
+PIS_DIR="/var/log/PIS"
+DIALOG_OK=0
+DIALOG_CANCEL=1
+DIALOG_ESC=255
+
+
+dialog --stdout \
+--backtitle "Slackware Post-Install Scripts v0.2" \
+--title "Slackpkg - Install Extentions" \
+--yesno "Would you like to continue installing extentions to 'slackpkg' for third-party repositories ('slackpkg+')?" \
+6 55 
+status=$?
+[ $status -eq $DIALOG_CANCEL ] && exit 0
+[ $status -eq $DIALOG_ESC ] && exit 0
+
+wget https://slakfinder.org/slackpkg+15/pkg/slackpkg+-1.8.0-noarch-7mt.txz -P /tmp
+installpkg /tmp/slackpkg+-1.8.0-noarch-7mt.txz
+slackpkg update gpg
+echo -e '\n' | slackpkg update 
+
+VALUES=$(dialog --stdout \
+--backtitle "Slackware Post-Install Scripts v0.2" \
+--title "Slackpkg - Install Extentions" \
+--checklist "Select the repositories you want to enable:" \
+0 0 0 \
+"multilib" "Libraries for running 32-bits programs."  off \
+"alienbob" "Lots of nice extraoficial programs." off \
+"restricted" "Includes programs against legal rules in some countries." off \
+)
+status=$?
+reg=($VALUES)
+if [ $status -eq 0 ]; then 
+    if [ ${#reg[@]} -ne 0 ]; then 
+        sed -i "s/\(^REPOPLUS=( slackpkgplus \).*/\1$(echo ${reg[@]}) )/" /etc/slackpkg/slackpkgplus.conf
+        
+        for i in ${reg[@]}; 
+        do 
+            sed -i "0,/\($i'\]=https\)/ s/#\(MIRRORPLUS\['$i\)/\1/" /etc/slackpkg/slackpkgplus.conf
+        done
+        slackpkg update gpg
+        echo -e '\n' | slackpkg update 
+    fi
+fi
+
+echo "$VALUES" > "$PIS_DIR/slackpkg_slackpkgplus"
+
+dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "Extentions to slackpkg for third-party repositories (slackpkg+) have been installed with success!" 6 55
+
+

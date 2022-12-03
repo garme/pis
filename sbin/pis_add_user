@@ -1,0 +1,68 @@
+#!/bin/bash
+# ===================================================================#
+# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
+# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
+# This is free software: you are free to change and redistribute it. # 
+# There is NO WARRANTY, to the extent permitted by law.              #
+#                                                                    #
+# Version: 0.2                                                       #
+#====================================================================#
+
+
+PIS_DIR="/var/log/PIS"
+DIALOG_OK=0
+DIALOG_CANCEL=1
+DIALOG_ESC=255
+
+VALUES=$( dialog  --stdout \
+--backtitle "Slackware Post-Install Scripts v0.2" \
+--ok-label "Add" \
+--title "Add User" \
+--form  "Add a new user:" \
+0 0 0 \
+"Username:"        1 1 "$login"     1 17 15 0 \
+"Password:"        2 1 "$password1" 2 17 15 0 \
+"Repeat password:" 3 1 "$password2" 3 17 15 0 \
+)
+status=$?
+[ $status -eq $DIALOG_CANCEL ] && exit 0
+[ $status -eq $DIALOG_ESC ] && exit 0
+reg=($VALUES)
+
+#print form values
+#echo ${reg[@]}
+
+if [ ${#reg[@]} -ne 3 ]
+then
+	dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "One or more parameters is/are missing!" 5 45 
+	exit 0
+fi
+
+if [ ${reg[1]} != ${reg[2]} ]
+then 
+	dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "Informed passwords don't match!" 5 40 
+	exit 0
+fi
+
+user=${reg[0]}
+password=${reg[1]}
+shell=/bin/bash
+home="/home/$user"
+
+useradd -m -d $home -s $shell -g users $user
+echo -e "$password\n$password" | (passwd $user &> /dev/null)
+
+dialog --stdout \
+--backtitle "Slackware Post-Install Scripts v0.2" \
+--title "Admin User" \
+--yesno "Would you like to add the user '$user'
+   to 'wheel' administrative group?" \
+0 0 
+OPTION=$?
+
+[ $OPTION -eq 0 ] && usermod -G wheel $user
+
+echo "$password:$OPTION" > "$PIS_DIR/user.$user"
+
+dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "The user '$user' 
+has been created with success!" 0 0 

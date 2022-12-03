@@ -1,0 +1,124 @@
+#!/bin/bash
+# ===================================================================#
+# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
+# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
+# This is free software: you are free to change and redistribute it. # 
+# There is NO WARRANTY, to the extent permitted by law.              #
+#                                                                    #
+# Version 0.1 : First release.                                       #
+# Version 0.2 : Included command line -h and -v options.             #
+#====================================================================#
+
+USE_MSG="
+Usage: $(basename "$0") [-h | -v]
+        -h | --help     Print this help and exit.
+        -v | --version  Print version information and exit.
+"
+case "$1" in
+    -h | --help)
+        echo "$USE_MSG"
+        exit 0
+        ;;
+
+    -v | --version)
+        echo -n "$(basename $0)"
+        grep "^# Version" "$0" | tail -1 | cut -d : -f 1 | tr -d \#
+        exit 0
+        ;;
+
+    -f | --file)
+        shift
+        FILE="$1"
+        if [ -f "$FILE" ]; then
+            ./pis_autoconfig_file "$FILE"
+            exit 0
+        else
+            echo "$(basename $0) -- Unable to access $1: File doesn't exist"
+            echo "Try '$(basename $0) --help' for more informations."
+            exit 1
+        fi
+        ;;
+
+        *)
+        if [ -n "$1" ]; then
+            echo "$(basename $0) -- Invalid option: $1"
+            echo "Try '$(basename $0) --help' for more informations."
+            exit 1
+        fi
+        ;;
+esac
+
+export PIS_DIR="/var/log/PIS"
+
+# Create the directory to log PIS settings.
+[ ! -d "$PIS_DIR" ] && mkdir "$PIS_DIR"
+
+DIALOG_OK=0
+DIALOG_CANCEL=1
+DIALOG_ESC=255
+
+while [ 1 ];
+do
+    OPCAO=$(sh -c "dialog  --stdout \
+    --backtitle \"Slackware Post-Install Scripts v0.2\" \
+    --title \"PIS Main Menu\" \
+    --cancel-label \"Exit\" \
+    --menu \"Welcome to Slackware Post-Install Scripts (PIS v0.2).\n\nWhich option would you like?\"  \
+    0 0 0  \
+    \"Locale\"   \"Set System Locale\" \
+    \"Login\"    \"Set Login Mode\" \
+    \"Kernels\"   \"Set 'Huge'/'Generic' Kernels to boot manager\" \
+    \"Users\"    \"Set Users Configurations\" \
+    \"GUI\"      \"Set Graphical Environment Configurations\" \
+    \"Packages\" \"Configure Package Managers\" \
+    \"About\"    \"About 'PIS'\"           \
+    \"Exit\"    \"Exit 'PIS'\"           \
+    ")
+    status=$?
+    if [ $status -eq $DIALOG_CANCEL ]; then 
+        clear
+        echo -e "Thanks for using PIS v0.2! ;)\n\n"
+        exit 0
+    fi
+    if [ $status -eq $DIALOG_ESC ]; then
+        clear
+        echo -e "Thanks for using PIS v0.2! ;)\n\n"
+        exit 0
+    fi
+
+    case $OPCAO in
+    "Locale")
+        /sbin/pis_locale    
+        ;;
+    "Login")
+        /sbin/pis_set_login_mode    
+        ;;
+    "Kernels")
+        /sbin/pis_set_huge_generic_kernels
+        ;;
+    "Users")
+        /sbin/pis_users    
+        ;;
+    "GUI")
+        /sbin/pis_x
+        ;;
+    "Packages")
+        /sbin/pis_package_managers
+        ;;
+    "About")
+        dialog --backtitle "Slackware Post-Install Scripts v0.2" \
+        --title "Slackware Post-Install Scripts v0.2" \
+        --msgbox "Slackware Post-Instalation Scripts (PIS) are a set of shell scripts for automating the most tedious Slackware version 15.0 post-installation configuration tasks.\n\n     'Let the Slackers be a little bit lazy. ;)'\n\n                    Version: 0.2\n\n             Author: Guilherme Esmeraldo\n         Contact: guilherme@slackscripts.com" 15 60
+        ;;
+    "Exit") 
+        clear
+        echo -e "Thanks for using PIS v0.2! ;)\n\n"
+        exit 0
+        ;;
+    *) 
+        clear
+        echo -e "Thanks for using PIS v0.2! ;)\n\n"
+        exit 0
+        ;;
+    esac
+done

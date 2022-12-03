@@ -1,0 +1,37 @@
+#!/bin/bash
+# ===================================================================#
+# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
+# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
+# This is free software: you are free to change and redistribute it. # 
+# There is NO WARRANTY, to the extent permitted by law.              #
+#                                                                    #
+# Version: 0.2                                                       #
+#====================================================================#
+
+PIS_DIR="/var/log/PIS"
+DIALOG_OK=0
+DIALOG_CANCEL=1
+DIALOG_ESC=255
+
+LOCALES=$(locale -a)
+LINGS=$(echo $(for i in $(locale -a); do echo "'$i' ''"; done))
+
+opcao=$(sh -c "dialog  --stdout \
+--backtitle \"Slackware Post-Install Scripts v0.2\" \
+--title \"Set Language-Country\" \
+--menu  \"Select language and country for your system:\" \
+0 0 8 \
+$LINGS")
+status=$?
+[ $status -eq $DIALOG_CANCEL ] && exit 0
+[ $status -eq $DIALOG_ESC ] && exit 0
+
+if [ $status -eq 0 ]; then
+	sed -i "0,/\(^export\)/s/\(^export LANG=.*\)/export LANG=$opcao/" /etc/profile.d/lang.sh
+	sed -i "0,/\(^setenv\)/s/\(^setenv LANG .*\)/setenv LANG $opcao/" /etc/profile.d/lang.csh
+
+    echo "$opcao" > "$PIS_DIR/language_country"
+
+	dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "Language and country have been setted to '$opcao'!" 6 55
+
+fi

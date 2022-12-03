@@ -1,0 +1,97 @@
+#!/bin/bash
+# ===================================================================#
+# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
+# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
+# This is free software: you are free to change and redistribute it. # 
+# There is NO WARRANTY, to the extent permitted by law.              #
+#                                                                    #
+# Version: 0.2                                                       #
+#====================================================================#
+
+PIS_DIR="/var/log/PIS"
+DIALOG_OK=0
+DIALOG_CANCEL=1
+DIALOG_ESC=255
+
+GUI_ENVS=""
+
+if [ -r /etc/X11/xinit/xinitrc.kde ]; then
+  GUI_ENVS="$GUI_ENVS \"xinitrc.kde\" \"KDE: KDE Plasma Desktop\""
+fi
+
+if [ -r /etc/X11/xinit/xinitrc.gnome ]; then
+  GUI_ENVS="$GUI_ENVS \"xinitrc.gnome\" \"GNU Network Object Model Environment\""
+fi
+
+if [ -r /etc/X11/xinit/xinitrc.xfce ]; then
+  GUI_ENVS="$GUI_ENVS \"xinitrc.xfce\" \"The Cholesterol Free Desktop Environment\""
+fi
+
+# Add Enlightenment:
+if [ -r /etc/X11/xinit/xinitrc.e ]; then
+  GUI_ENVS="$GUI_ENVS \"xinitrc.e\" \"Enlightenment\""
+fi
+
+# Add Fluxbox:
+if [ -r /etc/X11/xinit/xinitrc.fluxbox ]; then
+  GUI_ENVS="$GUI_ENVS \"xinitrc.fluxbox\" \"The fluxbox window manager\""
+fi
+
+# Add Blackbox:
+if [ -r /etc/X11/xinit/xinitrc.blackbox ]; then
+  GUI_ENVS="$GUI_ENVS \"xinitrc.blackbox\" \"The blackbox window manager\""
+fi
+
+# Add WindowMaker:
+if [ -r /etc/X11/xinit/xinitrc.wmaker ]; then
+  GUI_ENVS="$GUI_ENVS \"xinitrc.wmaker\" \"WindowMaker\""
+fi
+
+# Add FVWM2:
+if [ -r /etc/X11/xinit/xinitrc.fvwm2 ]; then
+  GUI_ENVS="$GUI_ENVS \"xinitrc.fvwm2\" \"F(?) Virtual Window Manager (version 2.xx)\""
+fi
+
+# Add FVWM95:
+if [ -r /etc/X11/xinit/xinitrc.fvwm95 ]; then
+  GUI_ENVS="$GUI_ENVS \"xinitrc.fvwm95\" \"FVWM2 with a Windows look and feel\""
+fi
+
+# Add icewm:
+if [ -r /etc/X11/xinit/xinitrc.icewm ]; then
+  GUI_ENVS="$GUI_ENVS \"xinitrc.icewm\" \"ICE Window Manager\""
+fi
+
+# Add sawfish:
+if [ -r /etc/X11/xinit/xinitrc.sawfish ]; then
+  GUI_ENVS="$GUI_ENVS \"xinitrc.sawfish\" \"Sawfish without GNOME\""
+fi
+
+# Add twm:
+if [ -r /etc/X11/xinit/xinitrc.twm ]; then
+  GUI_ENVS="$GUI_ENVS \"xinitrc.twm\" \"Tab Window Manager (very basic)\""
+fi
+
+# Add mwm:
+if [ -r /etc/X11/xinit/xinitrc.mwm ]; then
+  GUI_ENVS="$GUI_ENVS \"xinitrc.mwm\" \"Motif WM\""
+fi
+
+echo "$GUI_ENVS"
+
+
+OPCAO=$(sh -c "dialog  --stdout \\
+--backtitle \"Slackware Post-Install Scripts v0.2\" \\
+--title \"Set GUI Desktop Environment\" \\
+--menu  \"Select the default GUI desktop environment:\" \\
+0 0 0 \\
+$GUI_ENVS" )
+status=$?
+[ $status -eq $DIALOG_CANCEL ] && exit 0
+[ $status -eq $DIALOG_ESC ] && exit 0
+
+( cd /etc/X11/xinit ; rm -f xinitrc ; ln -sf $OPCAO xinitrc )
+
+echo "$OPCAO" > "$PIS_DIR/gui_desktop"
+
+dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "The new desktop environment has been selected with success! You have to restart the X environment for the new configurations become active!" 7 55

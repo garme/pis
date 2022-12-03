@@ -1,0 +1,91 @@
+#!/bin/bash
+# ===================================================================#
+# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
+# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
+# This is free software: you are free to change and redistribute it. # 
+# There is NO WARRANTY, to the extent permitted by law.              #
+#                                                                    #
+# Version: 0.2                                                       #
+#====================================================================#
+
+PIS_DIR="/var/log/PIS"
+
+dialog --stdout \
+--backtitle "Slackware Post-Install Scripts v0.2" \
+--title "Set Huge/Generic Kernels" \
+--yesno "It is necessary to create an initial RAM disk (”initrd“ for short). Would you like to continue?" \
+6 55 
+OPTION=$?
+
+[ $OPTION -ne 0 ] && exit 0
+
+mkinitrd_command=$(sh /usr/share/mkinitrd/mkinitrd_command_generator.sh | sed "/\(^#\)/d" | sed "/\(^$\)/d")
+sh $mkinitrd_command
+cp /boot/initrd.gz /boot/efi/EFI/Slackware/initrd-generic.gz
+
+
+dialog --stdout \
+--backtitle "Slackware Post-Install Scripts v0.2" \
+--title "Set Huge/Generic Kernels" \
+--yesno "Initial RAM disk has been created with success! Now, it is necessary to configure the boot manager 'Elilo'. Would you like to continue?" \
+7 55 
+OPTION=$?
+
+[ $OPTION -ne 0 ] && exit 0
+
+kernel_huge=$(ls /boot/ | grep "vmlinuz-huge-")
+cp /boot/$kernel_huge /boot/efi/EFI/Slackware/vmlinuz-huge
+
+kernel_generic=$(ls /boot/ | grep "vmlinuz-generic-")
+cp /boot/$kernel_generic /boot/efi/EFI/Slackware/vmlinuz-generic
+
+partition=$(/usr/share/mkinitrd/mkinitrd_command_generator.sh | sed "/\(^#\)/d" | sed "/\(^$\)/d" | sed "s/.*-r \(\/dev\/....\).*/\1/"i)
+
+mv /boot/efi/EFI/Slackware/elilo.conf{,.old}
+
+cat << EOF > /boot/efi/EFI/Slackware/elilo.conf
+#Generated automatically by Slackware Post-Install Scripts v0.2 (PIS)
+
+default=generic
+prompt
+chooser=simple
+message=message.txt
+delay=100
+timeout=100
+
+# huge kernel
+image = vmlinuz-huge
+  root = $partition 
+  read-only
+  append = "resume=$partition"
+  label = huge
+  description = "Slackware 64 Huge"
+
+# generic kernel
+image = vmlinuz-generic
+  root = $partition
+  read-only
+  append = "resume=$partition"
+  initrd = initrd-generic.gz
+  label = generic
+  description = "Slackware 64 Generic"
+
+EOF
+
+cat << EOF > /boot/efi/EFI/Slackware/message.txt
+Slackware 15.0 Elilo Boot Manager
+
+1. Press <Enter> to boot with the 'Generic' Kernel (recommended). 
+
+2. Type 'huge' and press <Enter> to boot with the 'Huge' kernel.
+
+3. Or press <Tab> to list available kernels.
+EOF
+
+echo "YES" > "$PIS_DIR/kernels"
+
+#Generated automatically by Slackware Post-Install Scripts v0.2 (PIS)
+dialog --stdout \
+--backtitle "Slackware Post-Install Scripts v0.2" \
+--title "Set Huge/Generic Kernels" \
+--msgbox "Huge and Generic kernels have been installed with success!\n\nReboot to the new configurations take effect." 8 55
