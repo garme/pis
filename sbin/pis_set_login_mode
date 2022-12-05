@@ -35,6 +35,9 @@ if [ $? -eq 0 ]; then
 		"GUI")
 		#	echo "GUI"
 			sed -i "s/id:.:initdefault:/id:4:initdefault:/" /etc/inittab
+
+            echo "$opcao" > "$PIS_DIR/login"
+
 			dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "Login mode has been setted to 'GUI'!" 5 40 
 			;;
 	esac

@@ -56,7 +56,7 @@ Section "InputClass"
 	MatchDevicePath "/dev/input/event*"
 	Driver "evdev"
 	Option "XkbLayout" "$layout"
-	#Option "XkbVariant" "$variant"
+	Option "XkbVariant" "$variant"
 	Option "XkbOptions" "terminate:ctrl_alt_bksp"
 EndSection
 EOF

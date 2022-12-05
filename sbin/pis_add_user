@@ -62,7 +62,7 @@ OPTION=$?
 
 [ $OPTION -eq 0 ] && usermod -G wheel $user
 
-echo "$password:$OPTION" > "$PIS_DIR/user.$user"
+echo -e "$user $password $OPTION" > "$PIS_DIR/user"
 
 dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "The user '$user' 
 has been created with success!" 0 0 

@@ -13,6 +13,8 @@ USE_MSG="
 Usage: $(basename "$0") [-h | -v]
         -h | --help     Print this help and exit.
         -v | --version  Print version information and exit.
+        -f | --file     Print version information and exit.
+        -o | --output   Print version information and exit.
 "
 case "$1" in
     -h | --help)
@@ -30,7 +32,7 @@ case "$1" in
         shift
         FILE="$1"
         if [ -f "$FILE" ]; then
-            ./pis_autoconfig_file "$FILE"
+            /sbin/pis_autoconfig_load_file "$FILE" 
             exit 0
         else
             echo "$(basename $0) -- Unable to access $1: File doesn't exist"
@@ -38,7 +40,18 @@ case "$1" in
             exit 1
         fi
         ;;
-
+   -o | --output)
+        shift
+        FILE="$1"
+        if [ -n "$FILE" ]; then
+            /sbin/pis_autoconfig_save_file 
+            exit 0
+        else
+            echo "$(basename $0) -- You must inform a file name"
+            echo "Try '$(basename $0) --help' for more informations."
+            exit 1
+        fi
+       ;;
         *)
         if [ -n "$1" ]; then
             echo "$(basename $0) -- Invalid option: $1"
@@ -63,14 +76,15 @@ do
     --backtitle \"Slackware Post-Install Scripts v0.2\" \
     --title \"PIS Main Menu\" \
     --cancel-label \"Exit\" \
-    --menu \"Welcome to Slackware Post-Install Scripts (PIS v0.2).\n\nWhich option would you like?\"  \
+    --menu \"Welcome to Slackware Post-Install Scripts (PIS v0.1).\n\nWhich option would you like?\"  \
     0 0 0  \
     \"Locale\"   \"Set System Locale\" \
     \"Login\"    \"Set Login Mode\" \
     \"Kernels\"   \"Set 'Huge'/'Generic' Kernels to boot manager\" \
-    \"Users\"    \"Set Users Configurations\" \
+    \"User\"     \"Set Initial User Configurations\" \
     \"GUI\"      \"Set Graphical Environment Configurations\" \
     \"Packages\" \"Configure Package Managers\" \
+    \"Save\"     \"Save Applied Settings to File\" \
     \"About\"    \"About 'PIS'\"           \
     \"Exit\"    \"Exit 'PIS'\"           \
     ")
@@ -97,13 +111,17 @@ do
         /sbin/pis_set_huge_generic_kernels
         ;;
     "Users")
-        /sbin/pis_users    
+        /sbin/pis_user    
         ;;
     "GUI")
         /sbin/pis_x
         ;;
     "Packages")
         /sbin/pis_package_managers
+        ;;
+    "Save")
+        FILE=$(dialog --stdout --backtitle "Slackware Post-Install Scripts v0.2" --title "Save Configuration to"  --fselect ./ 0 0)
+        /sbin/pis_autoconfig_save_file "$FILE"
         ;;
     "About")
         dialog --backtitle "Slackware Post-Install Scripts v0.2" \

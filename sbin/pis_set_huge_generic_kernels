@@ -33,11 +33,11 @@ OPTION=$?
 
 [ $OPTION -ne 0 ] && exit 0
 
-kernel_huge=$(ls /boot/ | grep "vmlinuz-huge-")
-cp /boot/$kernel_huge /boot/efi/EFI/Slackware/vmlinuz-huge
+kernel_huge=$(ls /boot/ | grep "vmlinuz-huge-" | tail -1)
+cp -L /boot/$kernel_huge /boot/efi/EFI/Slackware/vmlinuz-huge
 
-kernel_generic=$(ls /boot/ | grep "vmlinuz-generic-")
-cp /boot/$kernel_generic /boot/efi/EFI/Slackware/vmlinuz-generic
+kernel_generic=$(ls /boot/ | grep "vmlinuz-generic-" | tail -1)
+cp -L /boot/$kernel_generic /boot/efi/EFI/Slackware/vmlinuz-generic
 
 partition=$(/usr/share/mkinitrd/mkinitrd_command_generator.sh | sed "/\(^#\)/d" | sed "/\(^$\)/d" | sed "s/.*-r \(\/dev\/....\).*/\1/"i)
 

@@ -13,7 +13,7 @@ PIS_DIR="/var/log/PIS"
 wget https://software.jaos.org/slackpacks/slackware64-15.0/slapt-get/slapt-get-0.11.7-x86_64-1.txz -P /tmp
 installpkg /tmp/slapt-get-0.11.7-x86_64-1.txz
 
-if [ ! -f /lib64/libcrypto.so.1.1 ];
+if [ ! -f /lib64/libcrypto.so.1.1 ]
 then
 
 	dialog --stdout \
