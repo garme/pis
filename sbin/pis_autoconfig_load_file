@@ -1,0 +1,298 @@
+#!/bin/bash
+# ===================================================================#
+# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
+# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
+# This is free software: you are free to change and redistribute it. # 
+# There is NO WARRANTY, to the extent permitted by law.              #
+#                                                                    #
+# Version: 0.2                                                       #
+#====================================================================#
+
+
+PIS_DIR="/var/log/PIS"
+DIALOG_OK=0
+DIALOG_CANCEL=1
+DIALOG_ESC=255
+
+# Verifies if has a parameter (file name)
+[ -n "$1" ] && FILE=$1 || exit 0
+
+while read LINHA
+do
+    # Disconsider empty lines
+    [ "$LINHA" ] || continue
+    
+    # Disconsider commented lines
+    [ "$(echo $LINHA | cut -c1)" = "#" ] && continue
+
+    CHAVE=$(echo "$LINHA" | cut -d = -f 1)
+    VALOR=$(echo "$LINHA" | cut -d = -f 2)
+
+    case "$CHAVE" in
+    "language_country")
+        echo "$VALOR" > "$PIS_DIR/$CHAVE"
+
+        sed -i "0,/\(^export\)/s/\(^export LANG=.*\)/export LANG=$VALOR/" /etc/profile.d/lang.sh
+        sed -i "0,/\(^setenv\)/s/\(^setenv LANG .*\)/setenv LANG $VALOR/" /etc/profile.d/lang.csh
+         ;;
+
+    "keyboard_map")
+        echo "$VALOR" > "$PIS_DIR/$CHAVE"
+
+        sed -i "s/\(^ .*loadkeys\)\( .*\.map.*\)/\1 $VALOR/" /etc/rc.d/rc.keymap
+        /usr/bin/loadkeys "$VALOR"
+        ;;    
+
+    "login")
+        echo "$VALOR" > "$PIS_DIR/$CHAVE"
+
+        if [ "$VALOR" = "CLI" ]; then
+			sed -i "s/id:.:initdefault:/id:3:initdefault:/" /etc/inittab
+        else
+
+			sed -i "s/id:.:initdefault:/id:4:initdefault:/" /etc/inittab
+        fi
+        ;;    
+
+    "kernels")
+        echo "$VALOR" > "$PIS_DIR/$CHAVE"
+        mkinitrd_command=$(sh /usr/share/mkinitrd/mkinitrd_command_generator.sh | sed "/\(^#\)/d" | sed "/\(^$\)/d")
+        sh $mkinitrd_command
+        cp /boot/initrd.gz /boot/efi/EFI/Slackware/initrd-generic.gz
+
+        kernel_huge=$(ls /boot/ | grep "vmlinuz-huge-" | tail -1)
+        cp -L /boot/$kernel_huge /boot/efi/EFI/Slackware/vmlinuz-huge
+
+        kernel_generic=$(ls /boot/ | grep "vmlinuz-generic-" | tail -1)
+        cp -L /boot/$kernel_generic /boot/efi/EFI/Slackware/vmlinuz-generic
+
+        partition=$(/usr/share/mkinitrd/mkinitrd_command_generator.sh | sed "/\(^#\)/d" | sed "/\(^$\)/d" | sed "s/.*-r \(\/dev\/....\).*/\1/"i)
+
+        mv /boot/efi/EFI/Slackware/elilo.conf{,.old}
+
+        cat << EOF > /boot/efi/EFI/Slackware/elilo.conf
+#Generated automatically by Slackware Post-Install Scripts v0.2 (PIS)
+
+default=generic
+prompt
+chooser=simple
+message=message.txt
+delay=100
+timeout=100
+
+# huge kernel
+image = vmlinuz-huge
+  root = $partition 
+  read-only
+  append = "resume=$partition"
+  label = huge
+  description = "Slackware 64 Huge"
+
+# generic kernel
+image = vmlinuz-generic
+  root = $partition
+  read-only
+  append = "resume=$partition"
+  initrd = initrd-generic.gz
+  label = generic
+  description = "Slackware 64 Generic"
+
+EOF
+
+        cat << EOF > /boot/efi/EFI/Slackware/message.txt
+Slackware 15.0 Elilo Boot Manager
+
+1. Press <Enter> to boot with the 'Generic' Kernel (recommended). 
+
+2. Type 'huge' and press <Enter> to boot with the 'Huge' kernel.
+
+3. Or press <Tab> to list available kernels.
+EOF
+        ;;    
+
+    "wheel_group")
+        echo "$VALOR" > "$PIS_DIR/$CHAVE"
+
+        if [ "$VALOR" = "YES" ]; then
+			sed -i "s/# \(%wheel ALL=(ALL:ALL) ALL\)/\1/" /etc/sudoers
+        else
+			sed -i "s/\(^%wheel ALL=(ALL:ALL) ALL\)/# \1/" /etc/sudoers
+        fi
+        ;;    
+
+    "user")
+        echo "$VALOR" > "$PIS_DIR/$CHAVE"
+
+        reg=($VALOR)
+        user=${reg[0]}
+        password=${reg[1]}
+        shell=/bin/bash
+        home="/home/$user"
+
+        useradd -m -d $home -s $shell -g users $user
+        echo -e "$password\n$password" | (passwd $user &> /dev/null)
+
+        [ "${reg[2]}" = "0"] && usermod -G wheel $user
+        ;;    
+
+    "gui_desktop")
+        echo "$VALOR" > "$PIS_DIR/$CHAVE"
+        ( cd /etc/X11/xinit ; rm -f xinitrc ; ln -sf $VALOR xinitrc )
+        ;;    
+
+    "gui_keyboard")
+        echo "$VALOR" > "$PIS_DIR/$CHAVE"
+
+        layout=$(echo "$VALOR" | cut -d : -f 1)
+        variant=$(echo "$VALOR" | cut -d : -f 2) 
+
+        cat << EOF > /etc/X11/xorg.conf.d/90-keyboard-layout-evdev.conf
+Section "InputClass"
+	Identifier "keyboard-all"
+	MatchIsKeyboard "on"
+	MatchDevicePath "/dev/input/event*"
+	Driver "evdev"
+	Option "XkbLayout" "$layout"
+	Option "XkbVariant" "$variant"
+	Option "XkbOptions" "terminate:ctrl_alt_bksp"
+EndSection
+EOF
+        ;;    
+
+    "slackpkg_mirror")
+        echo "$VALOR" > "$PIS_DIR/$CHAVE"
+
+        sed -i "s/\(^http\)/# http/" /etc/slackpkg/mirrors
+        sed -i "s/\(^ftp\)/# ftp/" /etc/slackpkg/mirrors
+
+        sed -i "$VALOR s/\(^# \)//" /etc/slackpkg/mirrors
+        ;;    
+
+    "slackpkg_slackpkgplus")
+        echo "$VALOR" > "$PIS_DIR/$CHAVE"
+
+        wget https://slakfinder.org/slackpkg+15/pkg/slackpkg+-1.8.0-noarch-7mt.txz -P /tmp
+        installpkg /tmp/slackpkg+-1.8.0-noarch-7mt.txz
+
+        reg=($VALOR)
+        sed -i "s/\(^REPOPLUS=( slackpkgplus \).*/\1$(echo ${reg[@]}) )/" /etc/slackpkg/slackpkgplus.conf
+        
+        for i in ${reg[@]}; 
+        do 
+            sed -i "0,/\($i'\]=https\)/ s/#\(MIRRORPLUS\['$i\)/\1/" /etc/slackpkg/slackpkgplus.conf
+        done
+        slackpkg update gpg
+        echo -e '\n' | slackpkg update 
+        ;;    
+
+    "sbopkg")
+        echo "$VALOR" > "$PIS_DIR/$CHAVE"
+        wget https://github.com/sbopkg/sbopkg/releases/download/0.38.2/sbopkg-0.38.2-noarch-1_wsr.tgz -P /tmp
+        installpkg /tmp/sbopkg-0.38.2-noarch-1_wsr.tgz
+        sbopkg -r
+        ;;    
+
+    "slapt_get_install")
+        echo "$VALOR" > "$PIS_DIR/$CHAVE"
+
+        wget https://software.jaos.org/slackpacks/slackware64-15.0/slapt-get/slapt-get-0.11.7-x86_64-1.txz -P /tmp
+        installpkg /tmp/slapt-get-0.11.7-x86_64-1.txz
+        if [ ! -f /lib64/libcrypto.so.1.1 ];
+        then
+            slackpkg install openssl
+        fi
+        [ ! -f /lib64/libcrypto.so.3 ] && ln -s /lib64/libcrypto.so.1.1 /lib64/libcrypto.so.3
+        [ ! -f /lib64/libcrypto.so.1 ] && ln -s /lib64/libcrypto.so.1.1 /lib64/libcrypto.so.1
+        sed -i "s/14\.2/15\.0/" /etc/slapt-get/slapt-getrc		
+
+        slapt-get --update	
+        ;;    
+
+    "slapt_get_extra_repo")
+        echo "$VALOR" > "$PIS_DIR/$CHAVE"
+
+        reg=($VALOR)
+        for i in ${reg[@]}; 
+        do 
+          if [ "$i" == "slackonly" ]
+          then
+            flag=$(echo $(grep -e "^SOURCE=https:\/\/packages\.slackonly" /etc/slapt-get/slapt-getrc &> /dev/null; echo $?))
+            [ "$flag" -ne 0 ] && echo "SOURCE=https://packages.slackonly.com/pub/packages/15.0-x86_64/" >> /etc/slapt-get/slapt-getrc 
+            continue
+          fi
+          if [ "$i" == "slackers" ]
+          then
+            flag=$(echo $(grep -e "^SOURCE=https:\/\/slack\.conraid" /etc/slapt-get/slapt-getrc &> /dev/null; echo $?))
+            [ "$flag" -ne 0 ] && echo "SOURCE=https://slack.conraid.net/repository/slackware64-current/" >> /etc/slapt-get/slapt-getrc 
+            continue
+          fi
+          if [ "$i" == "salixos" ]
+          then
+            flag=$(echo $(grep -e "^SOURCE=https:\/\/download\.salixos\.org\/x86_64\/15\.0\/$" /etc/slapt-get/slapt-getrc &> /dev/null; echo $?))
+            [ "$flag" -ne 0 ] && echo "SOURCE=https://download.salixos.org/x86_64/15.0/" >> /etc/slapt-get/slapt-getrc 
+            continue
+          fi
+          if [ "$i" == "salixextra" ]
+          then
+            flag=$(echo $(grep -e "^SOURCE=https:\/\/download\.salixos\.org\/x86_64\/extra-15\.0\/" /etc/slapt-get/slapt-getrc &> /dev/null; echo $?))
+            [ "$flag" -ne 0 ] && echo "SOURCE=https://download.salixos.org/x86_64/extra-15.0/" >> /etc/slapt-get/slapt-getrc 
+            continue
+          fi
+          if [ "$i" == "slackel" ]
+          then
+            flag=$(echo $(grep -e "^SOURCE=http:\/\/www\.slackel" /etc/slapt-get/slapt-getrc &> /dev/null; echo $?))
+            [ "$flag" -ne 0 ] && echo "SOURCE=http://www.slackel.gr/repo/x86_64/current/" >> /etc/slapt-get/slapt-getrc 
+            continue
+          fi
+          if [ "$i" == "slint" ]
+          then
+            flag=$(echo $(grep -e "^SOURCE=https:\/\/slackware\.uk\/slint" /etc/slapt-get/slapt-getrc &> /dev/null; echo $?))
+            [ "$flag" -ne 0 ] && echo "SOURCE=https://slackware.uk/slint/x86_64/slint-15.0/" >> /etc/slapt-get/slapt-getrc 
+            continue
+          fi
+        done
+        slapt-get --update
+        ;;    
+
+    "slapt_get_gslapt")
+        echo "$VALOR" > "$PIS_DIR/$CHAVE"
+
+        wget https://www.jaos.org/slackpacks/slackware64-14.2/gslapt/gslapt-0.5.9-x86_64-2.txz -P /tmp
+        installpkg /tmp/gslapt-0.5.9-x86_64-2.txz
+        ;;    
+
+    "slapt_get_slapt_src")
+        echo "$VALOR" > "$PIS_DIR/$CHAVE"
+
+        wget https://software.jaos.org/slackpacks/slackware64-15.0/slapt-src/slapt-src-0.3.7-x86_64-2.txz  -P /tmp
+        installpkg /tmp/slapt-src-0.3.7-x86_64-2.txz
+
+        if [ ! -f /lib64/libcrypto.so.1.1 ];
+        then
+            slackpkg install openssl
+        fi
+
+        [ ! -f /lib64/libcrypto.so.3 ] && ln -s /lib64/libcrypto.so.1.1 /lib64/libcrypto.so.3
+
+        [ ! -f /lib64/libcrypto.so.1 ] && ln -s /lib64/libcrypto.so.1.1 /lib64/libcrypto.so.1
+
+        sed -i "s/14\.2/15\.0/" /etc/slapt-get/slapt-srcrc	
+        slapt-src --update	
+        ;;    
+
+    "slapt_get_slapt_update_notifier")
+        echo "$VALOR" > "$PIS_DIR/$CHAVE"
+
+        wget https://software.jaos.org/slackpacks/slackware64-15.0/slapt-update-service/slapt-update-service-0.5.3-x86_64-2.txz -P /tmp
+        installpkg /tmp/slapt-update-service-0.5.3-x86_64-2.txz
+        slapt-get --update	
+        ;;    
+    esac
+
+done < "$FILE"
+
+dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "Configuration file '$FILE' 
+has been loaded with success!" 0 0 
+
+
+

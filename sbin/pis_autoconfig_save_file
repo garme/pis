@@ -1,0 +1,106 @@
+#!/bin/bash
+# ===================================================================#
+# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
+# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
+# This is free software: you are free to change and redistribute it. # 
+# There is NO WARRANTY, to the extent permitted by law.              #
+#                                                                    #
+# Version: 0.2                                                       #
+#====================================================================#
+
+
+PIS_DIR="/var/log/PIS"
+DIALOG_OK=0
+DIALOG_CANCEL=1
+DIALOG_ESC=255
+
+# Verifies if has a parameter (file name)
+[ -n "$1" ] && FILE=$1 || exit 0
+
+# If file exists, clear it. If not, creates it.
+[ -r "$FILE" ] && echo -n "" > "$FILE"
+
+# Save locale settings
+if [ -r "$PIS_DIR/language_country" ]; then 
+    echo "language_country=$(cat $PIS_DIR/language_country)" >> "$FILE"    
+fi
+
+if [ -r "$PIS_DIR/keyboard_map" ]; then 
+    echo "keyboard_map=$(cat $PIS_DIR/keyboard_map)" >> "$FILE"    
+fi
+
+# Save login mode
+if [ -r "$PIS_DIR/login" ]; then 
+    echo "login=$(cat $PIS_DIR/login)" >> "$FILE"    
+fi
+
+# Save kernels setup
+if [ -r "$PIS_DIR/kernels" ]; then 
+    echo "kernels=$(cat $PIS_DIR/kernels)" >> "$FILE"    
+fi
+
+# Save wheel group setup
+if [ -r "$PIS_DIR/wheel_group" ]; then 
+    echo "wheel_group=$(cat $PIS_DIR/wheel_group)" >> "$FILE"    
+fi
+
+# Save user setup
+if [ -r "$PIS_DIR/user" ]; then 
+    echo "user=$(cat $PIS_DIR/user)" >> "$FILE"    
+fi
+
+# Save gui desktop envionment setup
+if [ -r "$PIS_DIR/gui_desktop" ]; then 
+    echo "gui_desktop=$(cat $PIS_DIR/gui_desktop)" >> "$FILE"    
+fi
+
+# Save gui keyboard setup
+if [ -r "$PIS_DIR/gui_keyboard" ]; then 
+    echo "gui_keyboard=$(cat $PIS_DIR/gui_keyboard)" >> "$FILE"    
+fi
+
+# Save slackpkg mirror setup
+if [ -r "$PIS_DIR/slackpkg_mirror" ]; then 
+    echo "slackpkg_mirror=$(cat $PIS_DIR/slackpkg_mirror)" >> "$FILE"    
+fi
+
+# Save slackpkg slackpkgplus setup
+if [ -r "$PIS_DIR/slackpkg_slackpkgplus" ]; then 
+    echo "slackpkg_slackpkgplus=$(cat $PIS_DIR/slackpkg_slackpkgplus)" >> "$FILE"    
+fi
+
+# Save sbopkg setup
+if [ -r "$PIS_DIR/sbopkg" ]; then 
+    echo "sbopkg=$(cat $PIS_DIR/sbopkg)" >> "$FILE"    
+fi
+
+# Save slapt-get setup
+if [ -r "$PIS_DIR/slapt_get_install" ]; then 
+    echo "slapt_get_install=$(cat $PIS_DIR/slapt_get_install)" >> "$FILE"    
+fi
+
+# Save slapt-get extra repositories setup
+if [ -r "$PIS_DIR/slapt_get_extra_repo" ]; then 
+    echo "slapt_get_extra_repo=$(cat $PIS_DIR/slapt_get_extra_repo)" >> "$FILE"    
+fi
+
+# Save slapt-get Gslapt setup
+if [ -r "$PIS_DIR/slapt_get_gslapt" ]; then 
+    echo "slapt_get_gslapt=$(cat $PIS_DIR/slapt_get_gslapt)" >> "$FILE"    
+fi
+
+# Save slapt-get slapt-src setup
+if [ -r "$PIS_DIR/slapt_get_slapt_src" ]; then 
+    echo "slapt_get_slapt_src=$(cat $PIS_DIR/slapt_get_slapt_src)" >> "$FILE"    
+fi
+
+# Save slapt-get slapt-update-notifier setup
+if [ -r "$PIS_DIR/slapt_get_slapt_update_notifier" ]; then 
+    echo "slapt_get_slapt_update_notifier=$(cat $PIS_DIR/slapt_get_slapt_update_notifier)" >> "$FILE"    
+fi
+
+dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "Configuration file '$FILE' 
+has been saved with success!" 0 0 
+
+
+
