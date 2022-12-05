@@ -10,11 +10,11 @@
 #====================================================================#
 
 USE_MSG="
-Usage: $(basename "$0") [-h | -v]
-        -h | --help     Print this help and exit.
-        -v | --version  Print version information and exit.
-        -f | --file     Print version information and exit.
-        -o | --output   Print version information and exit.
+Usage: $(basename "$0") [-h | -v | -f FILE | -o FILE]
+        -h | --help          Print this help and exit.
+        -v | --version       Print version information and exit.
+        -f | --file FILE     Load and apply settings from the file FILE. 
+        -o | --output FILE   Save previously made settings in the file FILE.
 "
 case "$1" in
     -h | --help)
@@ -84,7 +84,6 @@ do
     \"User\"     \"Set Initial User Configurations\" \
     \"GUI\"      \"Set Graphical Environment Configurations\" \
     \"Packages\" \"Configure Package Managers\" \
-    \"Save\"     \"Save Applied Settings to File\" \
     \"About\"    \"About 'PIS'\"           \
     \"Exit\"    \"Exit 'PIS'\"           \
     ")
@@ -118,10 +117,6 @@ do
         ;;
     "Packages")
         /sbin/pis_package_managers
-        ;;
-    "Save")
-        FILE=$(dialog --stdout --backtitle "Slackware Post-Install Scripts v0.2" --title "Save Configuration to"  --fselect ./ 0 0)
-        /sbin/pis_autoconfig_save_file "$FILE"
         ;;
     "About")
         dialog --backtitle "Slackware Post-Install Scripts v0.2" \

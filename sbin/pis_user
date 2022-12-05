@@ -1,0 +1,41 @@
+#!/bin/bash
+# ===================================================================#
+# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
+# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
+# This is free software: you are free to change and redistribute it. # 
+# There is NO WARRANTY, to the extent permitted by law.              #
+#                                                                    #
+# Version: 0.2                                                       #
+#====================================================================#
+
+
+PIS_DIR="/var/log/PIS"
+DIALOG_OK=0
+DIALOG_CANCEL=1
+DIALOG_ESC=255
+
+while [ 1 ]
+do
+
+OPCAO=$(sh -c "dialog  --stdout \
+--backtitle \"Slackware Post-Install Scripts v0.2\" \
+--title \"User Configuration\" \
+--menu \"Which option would you like?\"  \
+0 0 0  \
+\"1\"  \"[De]Activate 'Wheel' Administrative Group\" \
+\"2\"    \"Add New User\" \
+")
+status=$?
+[ $status -eq $DIALOG_CANCEL ] && exit 0
+[ $status -eq $DIALOG_ESC ] && exit 0
+
+case $OPCAO in
+"1")
+	/sbin/pis_set_wheel_group	
+	;;
+"2")
+	/sbin/pis_add_user	
+	;;
+esac
+
+done
