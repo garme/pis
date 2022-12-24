@@ -51,34 +51,31 @@ EOF
   do 
     VERSION=$(echo "$i" | cut -d "-" -f3)
     if [[ "$i" =~ "generic" ]]; then
-	echo "$i generic $VERSION"
-	mkinitrd_command=$(sh /usr/share/mkinitrd/mkinitrd_command_generator.sh -k "$VERSION"| sed "/\(^#\)/d" | sed "/\(^$\)/d")
-	echo "$mkinitrd_command"
-	sh $mkinitrd_command
-	cp /boot/initrd.gz /boot/efi/EFI/Slackware/initrd-generic-"$VERSION".gz
-	cp -L /boot/"$i" /boot/efi/EFI/Slackware/"$i"
-	ls /boot/efi/EFI/Slackware/
+	  mkinitrd_command=$(sh /usr/share/mkinitrd/mkinitrd_command_generator.sh -k "$VERSION"| sed "/\(^#\)/d" | sed "/\(^$\)/d")
+	  sh $mkinitrd_command
+	  cp /boot/initrd.gz /boot/efi/EFI/Slackware/initrd-generic-"$VERSION".gz
+	  cp -L /boot/"$i" /boot/efi/EFI/Slackware/"$i"
 	
-	echo "# generic kernel v$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
-	echo "image = vmlinuz-generic-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
-	echo "  root = $partition" >> /boot/efi/EFI/Slackware/elilo.conf
-	echo "  read-only" >> /boot/efi/EFI/Slackware/elilo.conf
-	echo "  append = \"resume=$partition\"" >> /boot/efi/EFI/Slackware/elilo.conf
-	echo "  initrd = initrd-generic-$VERSION.gz" >> /boot/efi/EFI/Slackware/elilo.conf
-	echo "  label = vmlinuz-generic-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
-	echo "  description = \"Slackware 64 Generic $VERSION\"" >> /boot/efi/EFI/Slackware/elilo.conf
-	echo "" >> /boot/efi/EFI/Slackware/elilo.conf
+	  echo "# generic kernel v$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
+	  echo "image = vmlinuz-generic-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
+	  echo "  root = $partition" >> /boot/efi/EFI/Slackware/elilo.conf
+	  echo "  read-only" >> /boot/efi/EFI/Slackware/elilo.conf
+	  echo "  append = \"resume=$partition\"" >> /boot/efi/EFI/Slackware/elilo.conf
+	  echo "  initrd = initrd-generic-$VERSION.gz" >> /boot/efi/EFI/Slackware/elilo.conf
+	  echo "  label = vmlinuz-generic-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
+	  echo "  description = \"Slackware 64 Generic $VERSION\"" >> /boot/efi/EFI/Slackware/elilo.conf
+	  echo "" >> /boot/efi/EFI/Slackware/elilo.conf
     else
-	cp -L /boot/"$i" /boot/efi/EFI/Slackware/"$i"
+	  cp -L /boot/"$i" /boot/efi/EFI/Slackware/"$i"
 	
-	echo "# huge kernel v$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
-	echo "image = vmlinuz-huge-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
-	echo "  root = $partition" >> /boot/efi/EFI/Slackware/elilo.conf
-	echo "  read-only" >> /boot/efi/EFI/Slackware/elilo.conf
-	echo "  append = \"resume=$partition\"" >> /boot/efi/EFI/Slackware/elilo.conf
-	echo "  label = vmlinuz-huge-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
-	echo "  description = \"Slackware 64 Huge $VERSION\"" >> /boot/efi/EFI/Slackware/elilo.conf
-	echo "" >> /boot/efi/EFI/Slackware/elilo.conf
+	  echo "# huge kernel v$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
+	  echo "image = vmlinuz-huge-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
+	  echo "  root = $partition" >> /boot/efi/EFI/Slackware/elilo.conf
+	  echo "  read-only" >> /boot/efi/EFI/Slackware/elilo.conf
+	  echo "  append = \"resume=$partition\"" >> /boot/efi/EFI/Slackware/elilo.conf
+	  echo "  label = vmlinuz-huge-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
+	  echo "  description = \"Slackware 64 Huge $VERSION\"" >> /boot/efi/EFI/Slackware/elilo.conf
+	  echo "" >> /boot/efi/EFI/Slackware/elilo.conf
     fi
   done
   cat << EOF > /boot/efi/EFI/Slackware/message.txt
@@ -96,7 +93,7 @@ EOF
   dialog --stdout \
   --backtitle "Slackware Post-Install Scripts v0.2" \
   --title "Set Huge/Generic Kernels" \
-  --msgbox "Huge and Generic kernels have been installed with success!\n\nReboot to the new configurations take effect." 8 55
+  --msgbox "Kernels have been installed to boot manager with success!\n\nReboot to the new configurations take effect." 8 55
 fi
 fi
 

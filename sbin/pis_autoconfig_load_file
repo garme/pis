@@ -10,6 +10,10 @@
 
 
 PIS_DIR="/var/log/PIS"
+
+# Create the directory to log PIS settings.
+[ ! -d "$PIS_DIR" ] && mkdir "$PIS_DIR"
+
 DIALOG_OK=0
 DIALOG_CANCEL=1
 DIALOG_ESC=255
@@ -56,58 +60,68 @@ do
 
     "kernels")
         echo "$VALOR" > "$PIS_DIR/$CHAVE"
-        mkinitrd_command=$(sh /usr/share/mkinitrd/mkinitrd_command_generator.sh | sed "/\(^#\)/d" | sed "/\(^$\)/d")
-        sh $mkinitrd_command
-        cp /boot/initrd.gz /boot/efi/EFI/Slackware/initrd-generic.gz
 
-        kernel_huge=$(ls /boot/ | grep "vmlinuz-huge-" | tail -1)
-        cp -L /boot/$kernel_huge /boot/efi/EFI/Slackware/vmlinuz-huge
+        reg=($VALOR)
 
-        kernel_generic=$(ls /boot/ | grep "vmlinuz-generic-" | tail -1)
-        cp -L /boot/$kernel_generic /boot/efi/EFI/Slackware/vmlinuz-generic
+        if [ ${#reg[@]} -ne 0 ]; then 
 
-        partition=$(/usr/share/mkinitrd/mkinitrd_command_generator.sh | sed "/\(^#\)/d" | sed "/\(^$\)/d" | sed "s/.*-r \(\/dev\/....\).*/\1/"i)
-
-        mv /boot/efi/EFI/Slackware/elilo.conf{,.old}
-
-        cat << EOF > /boot/efi/EFI/Slackware/elilo.conf
+            mv /boot/efi/EFI/Slackware/elilo.conf{,.old}
+            
+            cat << EOF > /boot/efi/EFI/Slackware/elilo.conf
 #Generated automatically by Slackware Post-Install Scripts v0.2 (PIS)
 
-default=generic
+default=${reg[0]}
 prompt
 chooser=simple
 message=message.txt
 delay=100
 timeout=100
 
-# huge kernel
-image = vmlinuz-huge
-  root = $partition 
-  read-only
-  append = "resume=$partition"
-  label = huge
-  description = "Slackware 64 Huge"
-
-# generic kernel
-image = vmlinuz-generic
-  root = $partition
-  read-only
-  append = "resume=$partition"
-  initrd = initrd-generic.gz
-  label = generic
-  description = "Slackware 64 Generic"
-
 EOF
+            partition=$(/usr/share/mkinitrd/mkinitrd_command_generator.sh | sed "/\(^#\)/d" | sed "/\(^$\)/d" | sed "s/.*-r \(\/dev\/....\).*/\1/"i)
 
-        cat << EOF > /boot/efi/EFI/Slackware/message.txt
+            for i in ${reg[@]} 
+            do 
+              VERSION=$(echo "$i" | cut -d "-" -f3)
+              if [[ "$i" =~ "generic" ]]; then
+                  mkinitrd_command=$(sh /usr/share/mkinitrd/mkinitrd_command_generator.sh -k "$VERSION"| sed "/\(^#\)/d" | sed "/\(^$\)/d")
+                  sh $mkinitrd_command
+                  cp /boot/initrd.gz /boot/efi/EFI/Slackware/initrd-generic-"$VERSION".gz
+                  cp -L /boot/"$i" /boot/efi/EFI/Slackware/"$i"
+                
+                  echo "# generic kernel v$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
+                  echo "image = vmlinuz-generic-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
+                  echo "  root = $partition" >> /boot/efi/EFI/Slackware/elilo.conf
+                  echo "  read-only" >> /boot/efi/EFI/Slackware/elilo.conf
+                  echo "  append = \"resume=$partition\"" >> /boot/efi/EFI/Slackware/elilo.conf
+                  echo "  initrd = initrd-generic-$VERSION.gz" >> /boot/efi/EFI/Slackware/elilo.conf
+                  echo "  label = vmlinuz-generic-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
+                  echo "  description = \"Slackware 64 Generic $VERSION\"" >> /boot/efi/EFI/Slackware/elilo.conf
+                  echo "" >> /boot/efi/EFI/Slackware/elilo.conf
+              else
+                  cp -L /boot/"$i" /boot/efi/EFI/Slackware/"$i"
+                
+                  echo "# huge kernel v$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
+                  echo "image = vmlinuz-huge-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
+                  echo "  root = $partition" >> /boot/efi/EFI/Slackware/elilo.conf
+                  echo "  read-only" >> /boot/efi/EFI/Slackware/elilo.conf
+                  echo "  append = \"resume=$partition\"" >> /boot/efi/EFI/Slackware/elilo.conf
+                  echo "  label = vmlinuz-huge-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
+                  echo "  description = \"Slackware 64 Huge $VERSION\"" >> /boot/efi/EFI/Slackware/elilo.conf
+                  echo "" >> /boot/efi/EFI/Slackware/elilo.conf
+              fi
+            done
+            cat << EOF > /boot/efi/EFI/Slackware/message.txt
 Slackware 15.0 Elilo Boot Manager
-
-1. Press <Enter> to boot with the 'Generic' Kernel (recommended). 
-
-2. Type 'huge' and press <Enter> to boot with the 'Huge' kernel.
-
-3. Or press <Tab> to list available kernels.
+  
+1. Press <Enter> to boot. 
+  
+2. Or press <Tab> to list available kernels.
+Type the kernel name and press <Enter> to boot.
 EOF
+          
+        fi
+
         ;;    
 
     "wheel_group")
