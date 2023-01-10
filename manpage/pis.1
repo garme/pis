@@ -1,0 +1,118 @@
+.\" Manpage for pis.
+.\" Contact guilherme@slackscripts.com to correct errors or typos.
+.TH PIS 1 "10 Jan 2023" "pis v0.2"
+.SH NAME
+pis \- A tool for performing system post-install settings in Slackware Linux.
+.SH SYNOPSIS
+\fBpis\fR
+.LP
+\fBpis\fR {\-o | \-\-output} \fIPROFILE_FILE\fR
+.LP
+\fBpis\fR {\-f | \-\-file} \fIPROFILE_FILE\fR
+.SH DESCRIPTION
+Slackware Post-Install Scripts (\fBPIS\fR) are a set of shell scripts for automating the most tedious Slackware version 15.0 post-install configuration tasks. \fBPIS\fR presents a set of command line menus similar to those of the Slackware installer and aim to simplify and make transparent the main system settings after a system installation.
+.LP
+A \fIPROFILE_FILE\fR is a text file which contains the configurations setted to a system by using the \fBPIS\fR scripts. A \fIPROFILE_FILE\fR can be used to automate the main system settings by using \fBPIS\fR, for example, in new system installations at the same or others machines. 
+.SH FEATURES
+With \fBPIS\fR v0.2 scripts Slackware users can:
+.LP
+ * Set system locale (language, country and character encoding)
+.LP 
+ * Configure login mode (GUI or CLI)
+.LP
+ * Add new users to system
+.LP
+ * Set the 'sudo' admin support
+.LP
+ * Set 'Huge' and 'Generic' kernels to boot manager (Elilo)
+.LP
+ * Install/Configure different package managers:
+.LP 
+    - Slackpkg:
+.LP
+        * Set main mirror
+        * Install Slackpkg+ extentions
+.LP 
+    - Sbopkg:
+.LP
+        * Install sbopkg
+.LP 
+    - Slapt-get:
+.LP
+        * Install slapt-get and extra repositories
+        * Install Gslapt (GTK-based GUI for slapt-get)
+        * Install slapt-src (slapt-get for Slackbuilds.org)
+        * Install slapt-update-notifier
+.SH IMPORTANT NOTES
+To perform the system settings, \fBPIS\fR v0.2 scripts will modify some important system files by using command line tools, such as the stream editor 'sed', so bypassing the use of the conventional tools.
+.LP
+So, if you want to feel more secure in using the \fBPIS\fR scripts, it would be interesting to back up the following files, in case you need to restore manually the respective settings:
+.LP
+ * To set the system locale (language and country):
+.LP
+    \fB/etc/profile.d/lang.sh\fR
+    \fB/etc/profile.d/lang.csh\fR
+.LP
+ * To set the command line keymap (keyboard character encoding):
+.LP
+    \fB/etc/rc.d/rc.keymap\fR
+.LP
+ * To select the login mode (GUI or CLI):
+.LP
+    \fB/etc/inittab\fR
+.LP
+ * To add different kernels types/versions to boot manager Elilo:
+.LP
+    \fB/boot/efi/EFI/Slackware/elilo.conf\fR
+.LP
+ * To enable the administrative group 'wheel':
+.LP
+    \fB/etc/sudoers\fR
+.LP
+ * To set the default desktop/window manager for the X environment:
+.LP
+    \fB/etc/X11/xinit/xinitrc\fR
+.LP
+ * To set the main mirror of the slackpkg package manager:
+.LP 
+    \fB/etc/slackpkg/mirrors\fR
+.SH OPTIONS
+.TP
+\fB\-o, \-\-output\fR \fIPROFILE_FILE\fR
+To generate the profile file \fIPROFILE_FILE\fR.
+.TP
+\fB\-f, \-\-file\fR	\fIPROFILE_FILE\fR
+To load and apply the settings from the profile file \fIPROFILE_FILE\fR
+.SH EXAMPLES
+To run \fBPIS\fR scripts, as root, you have to run the command:
+.LP
+  \fBpis\fR
+.LP
+To generate a profile file, before that you must perform the system settings by using \fBPIS\fR scripts. After that, to register the performed settings in a Profile File, as root, you can run one of the commands below:
+.LP
+  \fBpis -o profile_file_name\fR
+.LP
+or:
+.LP
+  \fBpis --output profile_file_name\fR
+.LP
+To load and apply the settings from a Profile File to the system, as root, you can run one of the following commands:
+.LP
+  \fBpis -f profile_file_name\fR
+.LP
+or:
+.LP
+  \fBpis --file profile_file_name\fR
+.SH REPORTING BUGS AND GETTING HELP
+The \fBPIS\fR project has the following servers in which is possible to report bugs and get help:
+.LP
+\fBPIS\fR official web page: <https://slackscripts.com/>
+.LP
+\fBPIS\fR official github: <https://github.com/garme/pis>
+.SH AUTHOR
+Guilherme Esmeraldo <guilherme@slackscripts.com>
+.SH COPYRIGHT
+Copyright (c) 2022 Guilherme Esmeraldo. All rights reserved.
+\fBPIS\fR scripts are free software: you can redistribute them and/or modify them under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or any later version.
+.LP
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details at <https://gnu.org/licenses/gpl.html>.

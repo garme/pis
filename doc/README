@@ -1,0 +1,280 @@
+------------------------------------------------------------------------
+
+                              README
+
+------------------------------------------------------------------------
+
+               Slackware Post-Install Scripts (PIS)
+
+                         Version 0.2
+
+           'Let the Slackers be a little bit lazy. ;)'
+    
+------------------------------------------------------------------------
+
+
+Contents
+========
+
+1. Introduction
+2. Features
+3. Important Notes
+4. Instalation
+5. Running
+6. Saving and Loading a Profile File
+7. Licence
+8. Reporting bugs and getting help
+9. Acknowledgments
+
+
+1.Introduction
+==============
+
+Slackware Post-Install Scripts (PIS) are a set of shell scripts for
+automating the most tedious Slackware version 15.0 post-install
+configuration tasks.
+
+PIS presents a set of command line menus similar to those of the
+Slackware installer and aim to simplify and make transparent the main
+system settings after a system installation.
+
+
+2.Features
+==========
+
+With PIS v0.2 scripts Slackware users can:
+
+ * Set system locale (language, country and character encoding)
+ 
+ * Configure login mode (GUI or CLI)
+ 
+ * Add new users to system
+ 
+ * Set the 'sudo' admin support
+ 
+ * Set 'Huge' and 'Generic' kernels to boot manager (Elilo)
+ 
+ * Install/Configure different package managers:
+    
+    - Slackpkg:
+
+        * Set main mirror
+        * Install Slackpkg+ extentions
+    
+    - Sbopkg:
+
+        * Install sbopkg
+    
+    - Slapt-get:
+
+        * Install slapt-get and extra repositories
+        * Install Gslapt (GTK-based GUI for slapt-get)
+        * Install slapt-src (slapt-get for Slackbuilds.org)
+        * Install slapt-update-notifier
+
+
+3. Important Notes
+==================
+
+To perform the system settings, PIS v0.2 scripts will modify some 
+important system files by using command line tools, such as the stream 
+editor 'sed', so bypassing the use of the conventional tools.
+
+So, if you want to feel more secure in using the PIS scripts, it would
+be interesting to back up the following files, in case you need to
+restore manually the respective settings:
+
+ * To set the system locale (language and country):
+   
+    /etc/profile.d/lang.sh
+    /etc/profile.d/lang.csh
+
+
+ * To set the command line keymap (keyboard character encoding):
+ 
+    /etc/rc.d/rc.keymap
+
+  
+ * To select the login mode (GUI or CLI):
+ 
+    /etc/inittab
+
+ 
+ * To add different kernels types/versions to boot manager Elilo:
+ 
+    /boot/efi/EFI/Slackware/elilo.conf
+
+ 
+ * To enable the administrative group 'wheel':
+ 
+    /etc/sudoers
+
+ 
+ * To set the default desktop/window manager for the X environment:
+ 
+    /etc/X11/xinit/xinitrc
+
+
+ * To set the main mirror of the slackpkg package manager:
+ 
+    /etc/slackpkg/mirrors
+
+
+4.Instalation
+=============
+
+To install PIS, you have to: 
+
+ 1. Download the PIS Slackware package at
+    <https://slackscripts.com/download.html> or by using some download
+    manager, as show bellow:
+
+
+$ wget http://www.slackscripts.com/packages/pis-0.2-noarch-2.txz
+
+
+ 2. Install PIS, running, as root, the command 'installpkg' passing
+    the downloaded package name as parameter:
+
+
+# installpkg pis-0.2-noarch-2.txz
+
+
+After installing the package, the PIS scripts are ready to be used to
+perform the main system settings.
+
+
+5.Running
+=========
+
+To run PIS scripts, as root, you have to run the command:
+
+
+# pis
+
+
+It will open the command line main menu of PIS scripts in which the
+Slackware users can perform the main system settings.
+
+
+6. Saving and Loading a Profile File
+====================================
+
+A Profile File is a text file which contains the configurations setted
+to a system by using the PIS scripts. A Profile File can be used to
+automate the main system settings by using PIS, for example, in new
+system installations at the same or others machines.
+
+
+6.1 Savind a Profile File
+-------------------------
+ 
+To generate a profile file, before that you must perform the system
+settings by using PIS scripts. After that, to register the performed
+settings in a Profile File, as root, you can run one of the commands
+below:
+
+
+# pis -o <profile_file_name>
+
+
+or:
+
+
+# pis --output <profile_file_name>
+
+
+With these commmands, it will be created a Profile File with the name
+<profile_file_name>. It follows an example of the contents of a Profile
+File:
+
+
+-------------------------------cut-here---------------------------------
+language_country=pt_BR.utf8
+keyboard_map=br-abnt2.map.gz
+login=GUI
+kernels=vmlinuz-generic-5.15.19 vmlinuz-generic-5.15.80
+wheel_group=YES
+user=garme password 0
+gui_desktop=xinitrc.xfce
+gui_keyboard=br:
+slackpkg_mirror=75
+slackpkg_slackpkgplus=alienbob restricted
+sbopkg=YES
+slapt_get_install=YES
+slapt_get_extra_repo=slackonly slackers
+slapt_get_slapt_src=YES
+-------------------------------cut-here---------------------------------
+
+
+6.2 Loading a Profile File
+--------------------------
+
+To load and apply the settings from a Profile File to the system, as
+root, you can run one of the following commands:
+
+
+# pis -f <profile_file_name>
+
+
+or:
+
+
+# pis --file <profile_file_name>
+
+
+With these commmands, the settings from the Profile File named
+<profile_file_name> will be loaded and applied to the system.
+
+
+7. Licence
+==========
+
+Slackware Post-Install Scripts (PIS) was developed by Guilherme
+Esmeraldo <guilherme@slackscripts.com>.
+
+-----
+
+Copyright (c) 2022 Guilherme Esmeraldo. All rights reserved.
+PIS scripts are free software: you can redistribute them and/or modify
+them under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details at
+<https://gnu.org/licenses/gpl.html>.
+
+-----
+
+This file is part of Slackware Post-Install Scripts (PIS).
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation.
+
+
+8. Reporting bugs and getting help
+==================================
+
+The PIS project has the following servers in which is possible to
+report bugs and get help:
+
+PIS official web page: <https://slackscripts.com/>
+
+PIS official github: <https://github.com/garme/pis>
+
+
+9. Acknowledgments
+==================
+
+Slackware Post-Install Scripts (PIS) was developed by Guilherme
+Esmeraldo. PIS would not be what it is today without the invaluable
+efforts of these people:
+
+ * Richard Stallman, the GNU Project: <https://www.gnu.org/>
+ 
+ * Linus Torvalds, the Linux Kernel: <https://kernel.org/>
+ 
+ * Patrick Volkerding, the Slackware Linux: <http://www.slackware.com/>

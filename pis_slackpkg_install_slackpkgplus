@@ -24,7 +24,7 @@ status=$?
 [ $status -eq $DIALOG_CANCEL ] && exit 0
 [ $status -eq $DIALOG_ESC ] && exit 0
 
-wget https://slakfinder.org/slackpkg+15/pkg/slackpkg+-1.8.0-noarch-7mt.txz -P /tmp
+wget https://sonik.dl.sourceforge.net/project/slackpkgplus/slackpkg%2B-1.8.0-noarch-7mt.txz -P /tmp
 installpkg /tmp/slackpkg+-1.8.0-noarch-7mt.txz
 slackpkg update gpg
 echo -e '\n' | slackpkg update 

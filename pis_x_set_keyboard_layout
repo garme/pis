@@ -45,11 +45,9 @@ then
 	--menu \"Select a keyboard layout variant:\" \
 	0 0 10 \
 	$VARIANTS")
+fi
 
-	status=$?
-	[ $status -eq $DIALOG_CANCEL ] && exit 0
-	[ $status -eq $DIALOG_ESC ] && exit 0
-	cat << EOF > /etc/X11/xorg.conf.d/90-keyboard-layout-evdev.conf
+cat << EOF > /etc/X11/xorg.conf.d/90-keyboard-layout-evdev.conf
 Section "InputClass"
 	Identifier "keyboard-all"
 	MatchIsKeyboard "on"
@@ -61,7 +59,6 @@ Section "InputClass"
 EndSection
 EOF
 
-fi
 
 echo "$layout:$variant" > "$PIS_DIR/gui_keyboard"
 

@@ -26,7 +26,7 @@ OPCAO=$(sh -c "dialog  --stdout \
 \"2\"  \"Install 'slapt-get' extra repositories?\" \
 \"3\"  \"Install 'Gslapt' (GTK-based GUI for 'slapt-get')\" \
 \"4\"  \"Install 'slapt-src'\" \
-\"5\"  \"Install 'slapt-notifier-notifier'\"\
+\"5\"  \"Install 'slapt-update-notifier'\"\
 ")
 status=$?
 [ $status -eq $DIALOG_CANCEL ] && exit 0
@@ -34,19 +34,19 @@ status=$?
 
 case $OPCAO in
 "1")
-	./pis_slapt_get_install
+	/sbin/pis_slapt_get_install
 	;;
 "2")
-	./pis_slapt_get_install_extra_repositories
+	/sbin/pis_slapt_get_install_extra_repositories
 	;;
 "3")
-	./pis_slapt_get_install_gslapt
+	/sbin/pis_slapt_get_install_gslapt
 	;;
 "4")
-	./pis_slapt_src_install
+	/sbin/pis_slapt_src_install
 	;;
 "5")
-	./pis_slapt_update_notifier_install
+	/sbin/pis_slapt_update_notifier_install
 	;;
 esac
 

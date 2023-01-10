@@ -45,7 +45,7 @@ delay=100
 timeout=100
 
 EOF
-    partition=$(/usr/share/mkinitrd/mkinitrd_command_generator.sh | sed "/\(^#\)/d" | sed "/\(^$\)/d" | sed "s/.*-r \(\/dev\/....\).*/\1/"i)
+    partition=$(/usr/share/mkinitrd/mkinitrd_command_generator.sh | sed "/\(^#\)/d" | sed "/\(^$\)/d" | sed "s/.*-r \(\/dev\/[^ ]*\).*/\1/"i)
 
   for i in ${reg[@]}; 
   do 
