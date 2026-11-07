@@ -1,41 +1,7 @@
 #!/bin/bash
-# ===================================================================#
-# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
-# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
-# This is free software: you are free to change and redistribute it. # 
-# There is NO WARRANTY, to the extent permitted by law.              #
-#                                                                    #
-# Version: 0.2                                                       #
-#====================================================================#
-
-PIS_DIR="/var/log/PIS"
-
-wget https://software.jaos.org/slackpacks/slackware64-15.0/slapt-src/slapt-src-0.3.7-x86_64-2.txz  -P /tmp
-installpkg /tmp/slapt-src-0.3.7-x86_64-2.txz
-
-if [ ! -f /lib64/libcrypto.so.1.1 ];
-then
-
-	dialog --stdout \
---backtitle "Slackware Post-Install Scripts v0.2" \
---title "Slapt-src - Install" \
---yesno "You have to install OpenSSL package. Would you like continue?" \
-0 0
-	OPTION=$?
-	[ $OPTION -ne 0 ] && exit 0
-	
-	slackpkg install openssl
-fi
-
-[ ! -f /lib64/libcrypto.so.3 ] && ln -s /lib64/libcrypto.so.1.1 /lib64/libcrypto.so.3
-
-[ ! -f /lib64/libcrypto.so.1 ] && ln -s /lib64/libcrypto.so.1.1 /lib64/libcrypto.so.1
-
-
-sed -i "s/14\.2/15\.0/" /etc/slapt-get/slapt-srcrc	
-slapt-src --update	
-
-echo "YES" > "$PIS_DIR/slapt_get_slapt_src"
-
-dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "Slapt-src is ready for Slackbuilds.org packages management!" 6 55
-
+PIS_SBIN="${PIS_SBIN:-/sbin}"; . "$PIS_SBIN/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
+pis_init || exit 1
+dialog --backtitle "$PIS_BACKTITLE" --title "Slapt-src" --yesno "Install slapt-src 0.3.9 for Slackware 15.0?" 7 60 || exit 0
+pis_install_slapt_src || { pis_error "slapt-src could not be installed."; exit 1; }
+slapt-src --update || { pis_error "slapt-src was installed, but its metadata could not be updated."; exit 1; }
+pis_info "Slapt-src" "slapt-src was installed successfully."

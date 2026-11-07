@@ -1,99 +1,26 @@
 #!/bin/bash
-# ===================================================================#
-# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
-# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
-# This is free software: you are free to change and redistribute it. # 
-# There is NO WARRANTY, to the extent permitted by law.              #
-#                                                                    #
-# Version: 0.2                                                       #
-#====================================================================#
+PIS_SBIN="${PIS_SBIN:-/sbin}"; . "$PIS_SBIN/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
+pis_init || exit 1
 
-PIS_DIR="/var/log/PIS"
-
-KERNELS=$(for i in /boot/vmlinuz-*; do
-if [ ! -L $i ]; then
-  if [[ "$i" =~ "generic" ]]; then
-        echo "$(basename $i)" "generic" "on"
-  else
-        echo "$(basename $i)" "huge" "on"
-  fi
+elilo_dir="$(pis_path /boot/efi/EFI/Slackware)"
+[ -f "$elilo_dir/elilo.conf" ] || { pis_error "This module configures ELILO, but $elilo_dir/elilo.conf was not found."; exit 1; }
+items=()
+for kernel_path in "$(pis_path /boot)"/vmlinuz-generic-* "$(pis_path /boot)"/vmlinuz-huge-*; do
+    [ -f "$kernel_path" ] && [ ! -L "$kernel_path" ] || continue
+    kernel="$(basename "$kernel_path")"
+    type="${kernel#vmlinuz-}"; type="${type%%-*}"
+    items+=("$kernel" "$type kernel" off)
+done
+[ "${#items[@]}" -gt 0 ] || { pis_error "No Huge or Generic kernels were found in /boot."; exit 1; }
+selected=$(dialog --stdout --separate-output --backtitle "$PIS_BACKTITLE" --title "ELILO Kernels" \
+    --checklist "Select kernels to publish. Current: $(pis_state_read kernels)" 0 0 14 "${items[@]}") || exit 0
+[ -n "$selected" ] || exit 0
+selection_line="$(printf '%s\n' "$selected" | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+dialog --backtitle "$PIS_BACKTITLE" --title "Confirm ELILO Configuration" \
+    --yesno "Generate initrds as needed and publish these kernels?\n\n$selection_line\n\nThe current ELILO configuration and replaced files will be backed up automatically." 13 72 || exit 0
+if pis_apply_kernels "$selection_line"; then
+    pis_info "ELILO Kernels" "The selected kernels were published successfully. Reboot to test the new configuration."
+else
+    pis_error "The ELILO configuration was not completed."
+    exit 1
 fi
-done)
-
-VALUES=$(dialog --stdout \
---backtitle "Slackware Post-Install Scripts v0.2" \
---title "Set Huge/Generic Kernels" \
-  --checklist "Select the kernels you want to add to boot:" \
-  0 0 0 \
-  $KERNELS
-)
-status=$?
-reg=($VALUES)
-
-if [ $status -eq 0 ]; then if [ ${#reg[@]} -ne 0 ]; then 
-
-    mv /boot/efi/EFI/Slackware/elilo.conf{,.old}
-	
-    cat << EOF > /boot/efi/EFI/Slackware/elilo.conf
-#Generated automatically by Slackware Post-Install Scripts v0.2 (PIS)
-
-default=${reg[0]}
-prompt
-chooser=simple
-message=message.txt
-delay=100
-timeout=100
-
-EOF
-    partition=$(/usr/share/mkinitrd/mkinitrd_command_generator.sh | sed "/\(^#\)/d" | sed "/\(^$\)/d" | sed "s/.*-r \(\/dev\/[^ ]*\).*/\1/"i)
-
-  for i in ${reg[@]}; 
-  do 
-    VERSION=$(echo "$i" | cut -d "-" -f3)
-    if [[ "$i" =~ "generic" ]]; then
-	  mkinitrd_command=$(sh /usr/share/mkinitrd/mkinitrd_command_generator.sh -k "$VERSION"| sed "/\(^#\)/d" | sed "/\(^$\)/d")
-	  sh $mkinitrd_command
-	  cp /boot/initrd.gz /boot/efi/EFI/Slackware/initrd-generic-"$VERSION".gz
-	  cp -L /boot/"$i" /boot/efi/EFI/Slackware/"$i"
-	
-	  echo "# generic kernel v$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
-	  echo "image = vmlinuz-generic-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
-	  echo "  root = $partition" >> /boot/efi/EFI/Slackware/elilo.conf
-	  echo "  read-only" >> /boot/efi/EFI/Slackware/elilo.conf
-	  echo "  append = \"resume=$partition\"" >> /boot/efi/EFI/Slackware/elilo.conf
-	  echo "  initrd = initrd-generic-$VERSION.gz" >> /boot/efi/EFI/Slackware/elilo.conf
-	  echo "  label = vmlinuz-generic-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
-	  echo "  description = \"Slackware 64 Generic $VERSION\"" >> /boot/efi/EFI/Slackware/elilo.conf
-	  echo "" >> /boot/efi/EFI/Slackware/elilo.conf
-    else
-	  cp -L /boot/"$i" /boot/efi/EFI/Slackware/"$i"
-	
-	  echo "# huge kernel v$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
-	  echo "image = vmlinuz-huge-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
-	  echo "  root = $partition" >> /boot/efi/EFI/Slackware/elilo.conf
-	  echo "  read-only" >> /boot/efi/EFI/Slackware/elilo.conf
-	  echo "  append = \"resume=$partition\"" >> /boot/efi/EFI/Slackware/elilo.conf
-	  echo "  label = vmlinuz-huge-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
-	  echo "  description = \"Slackware 64 Huge $VERSION\"" >> /boot/efi/EFI/Slackware/elilo.conf
-	  echo "" >> /boot/efi/EFI/Slackware/elilo.conf
-    fi
-  done
-  cat << EOF > /boot/efi/EFI/Slackware/message.txt
-Slackware 15.0 Elilo Boot Manager
-  
-1. Press <Enter> to boot. 
-  
-2. Or press <Tab> to list available kernels.
-Type the kernel name and press <Enter> to boot.
-EOF
-  
-  echo "$VALUES" > "$PIS_DIR/kernels"
-  
-  #Generated automatically by Slackware Post-Install Scripts v0.2 (PIS)
-  dialog --stdout \
-  --backtitle "Slackware Post-Install Scripts v0.2" \
-  --title "Set Huge/Generic Kernels" \
-  --msgbox "Kernels have been installed to boot manager with success!\n\nReboot to the new configurations take effect." 8 55
-fi
-fi
-

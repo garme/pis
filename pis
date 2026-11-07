@@ -1,138 +1,98 @@
 #!/bin/bash
-# ===================================================================#
-# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
-# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
-# This is free software: you are free to change and redistribute it. # 
-# There is NO WARRANTY, to the extent permitted by law.              #
-#                                                                    #
-# Version 0.1 : First release.                                       #
-# Version 0.2 : Included command line -h and -v options.             #
-#====================================================================#
 
-export PIS_DIR="/var/log/PIS"
+PIS_SBIN="${PIS_SBIN:-/sbin}"
+. "$PIS_SBIN/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
 
-# Create the directory to log PIS settings.
-[ ! -d "$PIS_DIR" ] && mkdir "$PIS_DIR"
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [OPTION]
+  -h, --help          Print this help and exit
+  -v, --version       Print version information and exit
+  -f, --file FILE     Validate and apply a PIS profile
+  -o, --output FILE   Export the current PIS profile
+  -c, --check         Run the PIS system check
+      --restore       Restore a file from a PIS backup
+EOF
+}
 
-USE_MSG="
-Usage: $(basename "$0") [-h | -v | -f FILE | -o FILE]
-        -h | --help          Print this help and exit.
-        -v | --version       Print version information and exit.
-        -f | --file FILE     Load and apply settings from the file FILE. 
-        -o | --output FILE   Save previously made settings in the file FILE.
-"
-case "$1" in
-    -h | --help)
-        echo "$USE_MSG"
+case "${1:-}" in
+    -h|--help) usage; exit 0 ;;
+    -v|--version) printf 'pis %s\n' "$PIS_VERSION"; exit 0 ;;
+    -f|--file)
+        [ -n "${2:-}" ] && [ -f "$2" ] || { printf 'pis: profile file not found\n' >&2; exit 1; }
+        pis_init && "$PIS_SBIN/pis_autoconfig_load_file" "$2"
+        exit $?
+        ;;
+    -o|--output)
+        [ -n "${2:-}" ] || { printf 'pis: an output filename is required\n' >&2; exit 1; }
+        pis_init && "$PIS_SBIN/pis_autoconfig_save_file" "$2"
+        exit $?
+        ;;
+    -c|--check)
+        pis_init || exit 1
+        report="$(pis_temp_file)" || exit 1
+        pis_system_check "$report"
+        dialog --backtitle "$PIS_BACKTITLE" --title "System Check" --textbox "$report" 22 72
+        rm -f "$report"
         exit 0
         ;;
-
-    -v | --version)
-        echo -n "$(basename $0)"
-        grep "^# Version" "$0" | tail -1 | cut -d : -f 1 | tr -d \#
-        exit 0
+    --restore)
+        pis_init && "$PIS_SBIN/pis_backup_restore"
+        exit $?
         ;;
-
-    -f | --file)
-        shift
-        FILE="$1"
-        if [ -f "$FILE" ]; then
-            /sbin/pis_autoconfig_load_file "$FILE" 
-            exit 0
-        else
-            echo "$(basename $0) -- Unable to access $1: File doesn't exist"
-            echo "Try '$(basename $0) --help' for more informations."
-            exit 1
-        fi
-        ;;
-   -o | --output)
-        shift
-        FILE="$1"
-        if [ -n "$FILE" ]; then
-            /sbin/pis_autoconfig_save_file "$FILE" 
-            exit 0
-        else
-            echo "$(basename $0) -- You must inform a file name"
-            echo "Try '$(basename $0) --help' for more informations."
-            exit 1
-        fi
-       ;;
-        *)
-        if [ -n "$1" ]; then
-            echo "$(basename $0) -- Invalid option: $1"
-            echo "Try '$(basename $0) --help' for more informations."
-            exit 1
-        fi
-        ;;
+    '') ;;
+    *) printf 'pis: invalid option: %s\n' "$1" >&2; usage >&2; exit 1 ;;
 esac
 
+pis_init || exit 1
 
-DIALOG_OK=0
-DIALOG_CANCEL=1
-DIALOG_ESC=255
+while true; do
+    choice=$(dialog --stdout --backtitle "$PIS_BACKTITLE" --title "PIS Main Menu" \
+        --cancel-label "Exit" --menu "Configure this Slackware 15.0 system:" 0 0 0 \
+        "Status"   "View current configuration and system check" \
+        "Locale"   "Set system locale and console keyboard" \
+        "Login"    "Set CLI or GUI login mode" \
+        "Kernels"  "Configure Huge/Generic kernels in ELILO" \
+        "User"     "Configure users and wheel administration" \
+        "GUI"      "Configure the graphical environment" \
+        "Packages" "Configure package managers" \
+        "Profiles" "Export or apply a reusable profile" \
+        "Restore"  "Restore a file from an automatic backup" \
+        "About"    "About PIS" \
+        "Exit"     "Exit PIS") || break
 
-while [ 1 ];
-do
-    OPCAO=$(sh -c "dialog  --stdout \
-    --backtitle \"Slackware Post-Install Scripts v0.2\" \
-    --title \"PIS Main Menu\" \
-    --cancel-label \"Exit\" \
-    --menu \"Welcome to Slackware Post-Install Scripts (PIS v0.2).\n\nWhich option would you like?\"  \
-    0 0 0  \
-    \"Locale\"   \"Set System Locale\" \
-    \"Login\"    \"Set Login Mode\" \
-    \"Kernels\"   \"Set 'Huge'/'Generic' Kernels to boot manager\" \
-    \"User\"     \"Set Initial User Configurations\" \
-    \"GUI\"      \"Set Graphical Environment Configurations\" \
-    \"Packages\" \"Configure Package Managers\" \
-    \"About\"    \"About 'PIS'\"           \
-    \"Exit\"    \"Exit 'PIS'\"           \
-    ")
-    status=$?
-    if [ $status -eq $DIALOG_CANCEL ]; then 
-        clear
-        echo -e "Thanks for using PIS v0.2! ;)\n\n"
-        exit 0
-    fi
-    if [ $status -eq $DIALOG_ESC ]; then
-        clear
-        echo -e "Thanks for using PIS v0.2! ;)\n\n"
-        exit 0
-    fi
-
-    case $OPCAO in
-    "Locale")
-        /sbin/pis_locale    
-        ;;
-    "Login")
-        /sbin/pis_set_login_mode    
-        ;;
-    "Kernels")
-        /sbin/pis_set_huge_generic_kernels
-        ;;
-    "User")
-        /sbin/pis_user    
-        ;;
-    "GUI")
-        /sbin/pis_x
-        ;;
-    "Packages")
-        /sbin/pis_package_managers
-        ;;
-    "About")
-        dialog --backtitle "Slackware Post-Install Scripts v0.2" \
-        --title "Slackware Post-Install Scripts v0.2" \
-        --msgbox "Slackware Post-Instalation Scripts (PIS) are a set of shell scripts for automating the most tedious Slackware version 15.0 post-installation configuration tasks.\n\n     'Let the Slackers be a little bit lazy. ;)'\n\n                    Version: 0.2\n\n             Author: Guilherme Esmeraldo\n         Contact: guilherme@slackscripts.com" 15 60
-        ;;
-    "Exit") 
-        clear
-        echo -e "Thanks for using PIS v0.2! ;)\n\n"
-        exit 0
-        ;;
-    *) 
-        clear
-        echo -e "Thanks for using PIS v0.2! ;)\n\n"
-        exit 0
-        ;;
+    case "$choice" in
+        Status) "$PIS_SBIN/pis_status" ;;
+        Locale) "$PIS_SBIN/pis_locale" ;;
+        Login) "$PIS_SBIN/pis_set_login_mode" ;;
+        Kernels) "$PIS_SBIN/pis_set_huge_generic_kernels" ;;
+        User) "$PIS_SBIN/pis_user" ;;
+        GUI) "$PIS_SBIN/pis_x" ;;
+        Packages) "$PIS_SBIN/pis_package_managers" ;;
+        Profiles)
+            action=$(dialog --stdout --backtitle "$PIS_BACKTITLE" --title "Profiles" \
+                --menu "Select an action:" 0 0 0 \
+                export "Export the current configuration" \
+                apply "Validate and apply a profile") || continue
+            file=$(dialog --stdout --backtitle "$PIS_BACKTITLE" --title "Profiles" \
+                --inputbox "Profile filename:" 8 65) || continue
+            [ -n "$file" ] || continue
+            if [ "$action" = export ]; then
+                "$PIS_SBIN/pis_autoconfig_save_file" "$file"
+            elif [ -f "$file" ]; then
+                "$PIS_SBIN/pis_autoconfig_load_file" "$file"
+            else
+                pis_error "Profile file not found: $file"
+            fi
+            ;;
+        Restore) "$PIS_SBIN/pis_backup_restore" ;;
+        About)
+            about="Slackware Post-Installation Scripts (PIS) automate selected Slackware 15.0 post-installation tasks.\n\nVersion: $PIS_VERSION\nAuthor: Guilherme Esmeraldo\nLicense: GPLv3+\n\n'Let the Slackers be a little bit lazy. ;)'"
+            pis_info "$PIS_BACKTITLE" "$about"
+            ;;
+        Exit) break ;;
     esac
 done
+
+clear
+printf "Thanks for using PIS v%s! ;)\n\n" "$PIS_VERSION"

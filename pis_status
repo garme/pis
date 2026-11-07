@@ -1,0 +1,18 @@
+#!/bin/bash
+
+PIS_SBIN="${PIS_SBIN:-/sbin}"
+. "$PIS_SBIN/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
+pis_init || exit 1
+
+report="$(pis_temp_file)" || exit 1
+pis_system_check "$report"
+{
+    printf '\nRecorded PIS configuration\n\n'
+    for item in language_country keyboard_map login kernels wheel_group user user_wheel gui_desktop gui_keyboard slackpkg_mirror slackpkg_slackpkgplus sbopkg slapt_get_install slapt_get_extra_repo slapt_get_gslapt slapt_get_slapt_src slapt_get_slapt_update_notifier; do
+        value="$(pis_state_read "$item")"
+        [ -n "$value" ] && printf '%-30s %s\n' "$item" "$value"
+    done
+} >> "$report"
+
+dialog --backtitle "$PIS_BACKTITLE" --title "Current Configuration" --textbox "$report" 24 78
+rm -f "$report"

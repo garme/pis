@@ -1,37 +1,15 @@
 #!/bin/bash
-# ===================================================================#
-# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
-# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
-# This is free software: you are free to change and redistribute it. # 
-# There is NO WARRANTY, to the extent permitted by law.              #
-#                                                                    #
-# Version: 0.2                                                       #
-#====================================================================#
-
-
-PIS_DIR="/var/log/PIS"
-DIALOG_OK=0
-DIALOG_CANCEL=1
-DIALOG_ESC=255
-
-MAPS=$(find /usr/share/kbd/keymaps/ | grep ".map.gz" | sed "s/\(.*\/\)\(.*\.map\.gz\)/\'\2\' \'\'/" | sort | tr '\n' ' ')
-
-opcao=$(sh -c "dialog  --stdout \
---backtitle \"Slackware Post-Install Scripts v0.2\" \
---title \"Set Keyboard Map\" \
---menu  \"Select a keyboard map for your system:\" \
-0 0 8 \
-$MAPS")
-status=$?
-[ $status -eq $DIALOG_CANCEL ] && exit 0
-[ $status -eq $DIALOG_ESC ] && exit 0
-
-if [ $status -eq 0 ]; then
-	sed -i "s/\(^ .*loadkeys\)\( .*\.map.*\)/\1 $opcao/" /etc/rc.d/rc.keymap
-	/usr/bin/loadkeys "$opcao"
-    
-    echo "$opcao" > "$PIS_DIR/keyboard_map"
-
-	dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "Keyboard map has been setted to '$opcao'!" 6 55
-
+PIS_SBIN="${PIS_SBIN:-/sbin}"; . "$PIS_SBIN/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
+pis_init || exit 1
+keymap_root="$(pis_path /usr/share/kbd/keymaps)"
+items=()
+while IFS= read -r path; do name="$(basename "$path")"; items+=("$name" ""); done < <(find "$keymap_root" -type f -name '*.map.gz' | sort)
+[ "${#items[@]}" -gt 0 ] || { pis_error "No console keyboard maps were found."; exit 1; }
+choice=$(dialog --stdout --backtitle "$PIS_BACKTITLE" --title "Console Keyboard Map" \
+    --menu "Select a keyboard map. Current: $(pis_state_read keyboard_map)" 0 0 14 "${items[@]}") || exit 0
+if pis_apply_console_keymap "$choice"; then
+    pis_info "Console Keyboard Map" "The console keyboard map was set to '$choice'."
+else
+    pis_error "The console keyboard map could not be changed."
+    exit 1
 fi

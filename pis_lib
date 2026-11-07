@@ -1,0 +1,477 @@
+#!/bin/bash
+
+# Shared functions for Slackware Post-Install Scripts (PIS).
+
+PIS_VERSION="0.3.0"
+PIS_ROOT="${PIS_ROOT:-}"
+PIS_SBIN="${PIS_SBIN:-/sbin}"
+PIS_DIR="${PIS_DIR:-${PIS_ROOT}/var/log/PIS}"
+PIS_BACKUP_DIR="${PIS_BACKUP_DIR:-$PIS_DIR/backups}"
+PIS_BACKUP_INDEX="$PIS_BACKUP_DIR/index"
+PIS_BACKTITLE="Slackware Post-Install Scripts v$PIS_VERSION"
+
+pis_path() {
+    printf '%s%s\n' "$PIS_ROOT" "$1"
+}
+
+pis_error() {
+    local message="$1"
+    if command -v dialog >/dev/null 2>&1 && [ -t 1 ]; then
+        dialog --backtitle "$PIS_BACKTITLE" --title "Error" --msgbox "$message" 0 0
+    else
+        printf 'PIS: %s\n' "$message" >&2
+    fi
+    return 1
+}
+
+pis_info() {
+    local title="$1" message="$2"
+    if command -v dialog >/dev/null 2>&1 && [ -t 1 ]; then
+        dialog --backtitle "$PIS_BACKTITLE" --title "$title" --msgbox "$message" 0 0
+    else
+        printf '%s: %s\n' "$title" "$message"
+    fi
+}
+
+pis_require_root() {
+    [ "${PIS_ALLOW_UNPRIVILEGED:-0}" = "1" ] && return 0
+    [ "$(id -u)" -eq 0 ] || pis_error "PIS must be run as root."
+}
+
+pis_init() {
+    pis_require_root || return 1
+    command -v dialog >/dev/null 2>&1 || { pis_error "The 'dialog' program is required."; return 1; }
+    mkdir -p "$PIS_DIR" "$PIS_BACKUP_DIR" || { pis_error "Unable to create $PIS_DIR."; return 1; }
+    chmod 700 "$PIS_DIR" "$PIS_BACKUP_DIR" 2>/dev/null || true
+    touch "$PIS_BACKUP_INDEX" || return 1
+    chmod 600 "$PIS_BACKUP_INDEX" 2>/dev/null || true
+}
+
+pis_state_write() {
+    local key="$1" value="$2" file="$PIS_DIR/$1"
+    printf '%s\n' "$value" > "$file" || return 1
+    chmod 600 "$file" 2>/dev/null || true
+}
+
+pis_state_read() {
+    local file="$PIS_DIR/$1"
+    [ -r "$file" ] && head -n 1 "$file"
+}
+
+pis_backup_file() {
+    local original="$1" reason="${2:-manual}" stamp safe destination
+    [ -e "$original" ] || [ -L "$original" ] || return 0
+    mkdir -p "$PIS_BACKUP_DIR" || return 1
+    stamp="$(date +%Y%m%d-%H%M%S)-$$"
+    safe="$(printf '%s' "$original" | sed 's#^/##; s#/#__#g')"
+    destination="$(mktemp "$PIS_BACKUP_DIR/${stamp}__${safe}.XXXXXX")" || return 1
+    rm -f "$destination"
+    cp -a "$original" "$destination" || return 1
+    printf '%s\t%s\t%s\t%s\n' "$stamp" "$reason" "$original" "$destination" >> "$PIS_BACKUP_INDEX"
+}
+
+pis_restore_backup() {
+    local backup="$1" original="$2"
+    [ -e "$backup" ] || { pis_error "Backup not found: $backup"; return 1; }
+    pis_backup_file "$original" "before-restore" || return 1
+    mkdir -p "$(dirname "$original")" || return 1
+    rm -f "$original" || return 1
+    cp -a "$backup" "$original" || return 1
+}
+
+pis_replace_file() {
+    local source="$1" destination="$2" reason="$3" mode="${4:-}"
+    if [ -e "$destination" ] && cmp -s "$source" "$destination"; then
+        return 0
+    fi
+    pis_backup_file "$destination" "$reason" || return 1
+    mkdir -p "$(dirname "$destination")" || return 1
+    if [ -n "$mode" ]; then
+        install -m "$mode" "$source" "$destination"
+    else
+        cp -a "$source" "$destination"
+    fi
+}
+
+pis_temp_file() {
+    mktemp "${TMPDIR:-/tmp}/pis.XXXXXX"
+}
+
+pis_validate_choice() {
+    local value="$1"; shift
+    local allowed
+    for allowed in "$@"; do
+        [ "$value" = "$allowed" ] && return 0
+    done
+    return 1
+}
+
+pis_apply_locale() {
+    local locale="$1" lang_sh lang_csh tmp
+    locale -a | grep -Fxq "$locale" || { pis_error "Locale '$locale' is not available."; return 1; }
+    lang_sh="$(pis_path /etc/profile.d/lang.sh)"
+    lang_csh="$(pis_path /etc/profile.d/lang.csh)"
+    [ -f "$lang_sh" ] && [ -f "$lang_csh" ] || { pis_error "Slackware locale files were not found."; return 1; }
+
+    tmp="$(pis_temp_file)" || return 1
+    sed "0,/^export LANG=/{/^export LANG=/s/.*/export LANG=$locale/;}" "$lang_sh" > "$tmp" || { rm -f "$tmp"; return 1; }
+    grep -Fqx "export LANG=$locale" "$tmp" || { rm -f "$tmp"; pis_error "Unable to update lang.sh."; return 1; }
+    pis_replace_file "$tmp" "$lang_sh" "locale" || { rm -f "$tmp"; return 1; }
+    rm -f "$tmp"
+
+    tmp="$(pis_temp_file)" || return 1
+    sed "0,/^setenv LANG /{/^setenv LANG /s/.*/setenv LANG $locale/;}" "$lang_csh" > "$tmp" || { rm -f "$tmp"; return 1; }
+    grep -Fqx "setenv LANG $locale" "$tmp" || { rm -f "$tmp"; pis_error "Unable to update lang.csh."; return 1; }
+    pis_replace_file "$tmp" "$lang_csh" "locale" || { rm -f "$tmp"; return 1; }
+    rm -f "$tmp"
+    pis_state_write language_country "$locale"
+}
+
+pis_apply_console_keymap() {
+    local keymap="$1" rc_keymap tmp
+    find "$(pis_path /usr/share/kbd/keymaps)" -type f -name "$keymap" -print -quit 2>/dev/null | grep -q . || \
+        { pis_error "Keyboard map '$keymap' is not installed."; return 1; }
+    rc_keymap="$(pis_path /etc/rc.d/rc.keymap)"
+    [ -f "$rc_keymap" ] || { pis_error "$rc_keymap was not found."; return 1; }
+    tmp="$(pis_temp_file)" || return 1
+    sed -E "s#^([[:space:]]*/usr/bin/loadkeys)[[:space:]]+.*#\\1 $keymap#" "$rc_keymap" > "$tmp" || { rm -f "$tmp"; return 1; }
+    grep -Eq "loadkeys[[:space:]]+$keymap$" "$tmp" || { rm -f "$tmp"; pis_error "Unable to update rc.keymap."; return 1; }
+    pis_replace_file "$tmp" "$rc_keymap" "console-keymap" "755" || { rm -f "$tmp"; return 1; }
+    rm -f "$tmp"
+    [ -n "$PIS_ROOT" ] || /usr/bin/loadkeys "$keymap" || return 1
+    pis_state_write keyboard_map "$keymap"
+}
+
+pis_apply_login_mode() {
+    local mode="$1" runlevel inittab tmp
+    pis_validate_choice "$mode" CLI GUI || { pis_error "Invalid login mode: $mode"; return 1; }
+    [ "$mode" = "CLI" ] && runlevel=3 || runlevel=4
+    inittab="$(pis_path /etc/inittab)"
+    [ -f "$inittab" ] || { pis_error "$inittab was not found."; return 1; }
+    tmp="$(pis_temp_file)" || return 1
+    sed -E "s/^id:[0-9]+:initdefault:/id:$runlevel:initdefault:/" "$inittab" > "$tmp" || { rm -f "$tmp"; return 1; }
+    grep -Fqx "id:$runlevel:initdefault:" "$tmp" || { rm -f "$tmp"; pis_error "Unable to update inittab."; return 1; }
+    pis_replace_file "$tmp" "$inittab" "login-mode" || { rm -f "$tmp"; return 1; }
+    rm -f "$tmp"
+    pis_state_write login "$mode"
+}
+
+pis_apply_wheel() {
+    local enabled="$1" sudoers tmp visudo_cmd
+    pis_validate_choice "$enabled" YES NO || { pis_error "Invalid wheel setting: $enabled"; return 1; }
+    sudoers="$(pis_path /etc/sudoers)"
+    [ -f "$sudoers" ] || { pis_error "$sudoers was not found."; return 1; }
+    tmp="$(pis_temp_file)" || return 1
+    if [ "$enabled" = "YES" ]; then
+        sed -E 's/^[[:space:]]*#[[:space:]]*(%wheel[[:space:]]+ALL=\(ALL(:ALL)?\)[[:space:]]+ALL)/\1/' "$sudoers" > "$tmp"
+        grep -Eq '^%wheel[[:space:]]+ALL=' "$tmp" || { rm -f "$tmp"; pis_error "No compatible wheel rule was found in sudoers."; return 1; }
+    else
+        sed -E 's/^(%wheel[[:space:]]+ALL=\(ALL(:ALL)?\)[[:space:]]+ALL)/# \1/' "$sudoers" > "$tmp"
+    fi
+    visudo_cmd="$(command -v visudo || true)"
+    [ -n "$visudo_cmd" ] && "$visudo_cmd" -cf "$tmp" >/dev/null || { rm -f "$tmp"; pis_error "The generated sudoers file is invalid."; return 1; }
+    pis_replace_file "$tmp" "$sudoers" "wheel-group" "440" || { rm -f "$tmp"; return 1; }
+    rm -f "$tmp"
+    pis_state_write wheel_group "$enabled"
+}
+
+pis_add_system_user() {
+    local username="$1" password="$2" wheel="${3:-NO}"
+    printf '%s' "$username" | grep -Eq '^[a-z_][a-z0-9_-]{0,31}$' || { pis_error "Invalid username: $username"; return 1; }
+    [ -n "$password" ] || { pis_error "The password cannot be empty."; return 1; }
+    if getent passwd "$username" >/dev/null; then
+        pis_error "User '$username' already exists."
+        return 1
+    fi
+    useradd -m -d "/home/$username" -s /bin/bash -g users "$username" || return 1
+    if ! printf '%s:%s\n' "$username" "$password" | chpasswd; then
+        userdel -r "$username" >/dev/null 2>&1 || true
+        return 1
+    fi
+    if [ "$wheel" = "YES" ]; then
+        usermod -aG wheel "$username" || return 1
+    fi
+    pis_state_write user "$username"
+    pis_state_write user_wheel "$wheel"
+}
+
+pis_apply_desktop() {
+    local desktop="$1" xinit_dir target
+    printf '%s' "$desktop" | grep -Eq '^xinitrc\.[A-Za-z0-9._+-]+$' || { pis_error "Invalid desktop entry."; return 1; }
+    xinit_dir="$(pis_path /etc/X11/xinit)"
+    target="$xinit_dir/$desktop"
+    [ -f "$target" ] || { pis_error "Desktop entry '$desktop' is not installed."; return 1; }
+    pis_backup_file "$xinit_dir/xinitrc" "desktop" || return 1
+    ln -sfn "$desktop" "$xinit_dir/xinitrc" || return 1
+    pis_state_write gui_desktop "$desktop"
+}
+
+pis_apply_x_keyboard() {
+    local layout="$1" variant="${2:-}" config tmp rules
+    printf '%s' "$layout" | grep -Eq '^[A-Za-z0-9_-]+$' || { pis_error "Invalid X keyboard layout."; return 1; }
+    printf '%s' "$variant" | grep -Eq '^[A-Za-z0-9_+-]*$' || { pis_error "Invalid X keyboard variant."; return 1; }
+    rules="$(pis_path /usr/share/X11/xkb/rules/base.lst)"
+    [ -r "$rules" ] || { pis_error "The XKB rules database was not found."; return 1; }
+    awk -v wanted="$layout" '
+        /^! layout/ { active=1; next }
+        /^!/ { if (active) exit }
+        active && $1 == wanted { found=1 }
+        END { exit !found }
+    ' "$rules" || { pis_error "Unknown X keyboard layout: $layout"; return 1; }
+    config="$(pis_path /etc/X11/xorg.conf.d/90-keyboard-layout-evdev.conf)"
+    tmp="$(pis_temp_file)" || return 1
+    {
+        printf '%s\n' 'Section "InputClass"'
+        printf '%s\n' '    Identifier "keyboard-all"'
+        printf '%s\n' '    MatchIsKeyboard "on"'
+        printf '%s\n' '    MatchDevicePath "/dev/input/event*"'
+        printf '%s\n' '    Driver "evdev"'
+        printf '    Option "XkbLayout" "%s"\n' "$layout"
+        [ -n "$variant" ] && printf '    Option "XkbVariant" "%s"\n' "$variant"
+        printf '%s\n' '    Option "XkbOptions" "terminate:ctrl_alt_bksp"'
+        printf '%s\n' 'EndSection'
+    } > "$tmp"
+    pis_replace_file "$tmp" "$config" "x-keyboard" "644" || { rm -f "$tmp"; return 1; }
+    rm -f "$tmp"
+    pis_state_write gui_keyboard "$layout:$variant"
+}
+
+pis_apply_slackpkg_mirror() {
+    local url="$1" mirrors tmp
+    printf '%s' "$url" | grep -Eq '^https?://[^[:space:]]+/?$' || { pis_error "Invalid mirror URL."; return 1; }
+    printf '%s' "$url" | grep -Eq 'slackware(64)?-15\.0/?$' || { pis_error "The mirror does not identify Slackware 15.0."; return 1; }
+    mirrors="$(pis_path /etc/slackpkg/mirrors)"
+    [ -f "$mirrors" ] || { pis_error "$mirrors was not found."; return 1; }
+    grep -Fq "$url" "$mirrors" || { pis_error "The selected mirror is not listed in $mirrors."; return 1; }
+    tmp="$(pis_temp_file)" || return 1
+    awk -v selected="$url" '
+        /^[[:space:]]*(# ?)?(https?|ftp):\/\// {
+            line=$0; sub(/^[[:space:]]*#[[:space:]]*/, "", line)
+            if (line == selected) print line; else print "# " line
+            next
+        }
+        { print }
+    ' "$mirrors" > "$tmp" || { rm -f "$tmp"; return 1; }
+    [ "$(grep -Fxc "$url" "$tmp")" -eq 1 ] || { rm -f "$tmp"; pis_error "Unable to select the mirror."; return 1; }
+    pis_replace_file "$tmp" "$mirrors" "slackpkg-mirror" "644" || { rm -f "$tmp"; return 1; }
+    rm -f "$tmp"
+    pis_state_write slackpkg_mirror "$url"
+}
+
+pis_apply_kernels() {
+    local selections="$1" elilo_dir elilo_config root_device swap_device stage generator
+    local kernel version label initrd_name mkinitrd_command destination type first_type entry_number=0
+    local -a kernels
+    read -r -a kernels <<< "$selections"
+    [ "${#kernels[@]}" -gt 0 ] || { pis_error "No kernel was selected."; return 1; }
+
+    elilo_dir="$(pis_path /boot/efi/EFI/Slackware)"
+    elilo_config="$elilo_dir/elilo.conf"
+    [ -d "$elilo_dir" ] && [ -f "$elilo_config" ] || { pis_error "An ELILO installation was not found at $elilo_dir."; return 1; }
+    generator="$(pis_path /usr/share/mkinitrd/mkinitrd_command_generator.sh)"
+    [ -x "$generator" ] || { pis_error "mkinitrd_command_generator.sh was not found."; return 1; }
+    command -v findmnt >/dev/null 2>&1 || { pis_error "findmnt is required to detect the root filesystem."; return 1; }
+    root_device="$(findmnt -n -o SOURCE / | sed 's/\[.*\]$//')"
+    [ -n "$root_device" ] || { pis_error "Unable to detect the root filesystem."; return 1; }
+    swap_device="$(swapon --noheadings --show=NAME 2>/dev/null | head -n 1)"
+
+    stage="$(mktemp -d "${TMPDIR:-/tmp}/pis-elilo.XXXXXX")" || return 1
+    {
+        printf '# Generated by PIS %s\n\n' "$PIS_VERSION"
+        first_type="${kernels[0]#vmlinuz-}"
+        first_type="${first_type%%-*}"
+        printf 'default=%s-1\n' "$first_type"
+        printf 'prompt\nchooser=simple\nmessage=message.txt\ndelay=100\ntimeout=100\n\n'
+    } > "$stage/elilo.conf"
+
+    for kernel in "${kernels[@]}"; do
+        entry_number=$((entry_number + 1))
+        printf '%s' "$kernel" | grep -Eq '^vmlinuz-(generic|huge)-[A-Za-z0-9._+-]+$' || { rm -rf "$stage"; pis_error "Invalid kernel name: $kernel"; return 1; }
+        [ -f "$(pis_path /boot)/$kernel" ] || { rm -rf "$stage"; pis_error "Kernel not found: $kernel"; return 1; }
+        cp -L "$(pis_path /boot)/$kernel" "$stage/$kernel" || { rm -rf "$stage"; return 1; }
+        type="${kernel#vmlinuz-}"
+        type="${type%%-*}"
+        label="$type-$entry_number"
+        if printf '%s' "$kernel" | grep -q '^vmlinuz-generic-'; then
+            version="${kernel#vmlinuz-generic-}"
+            mkinitrd_command="$("$generator" -k "$version" | sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' | tail -n 1)"
+            printf '%s' "$mkinitrd_command" | grep -Eq '(^|/)(sbin/)?mkinitrd[[:space:]]' || { rm -rf "$stage"; pis_error "The generated mkinitrd command was not recognized."; return 1; }
+            bash -c "$mkinitrd_command" || { rm -rf "$stage"; pis_error "mkinitrd failed for kernel $version."; return 1; }
+            [ -f "$(pis_path /boot/initrd.gz)" ] || { rm -rf "$stage"; pis_error "mkinitrd did not create /boot/initrd.gz."; return 1; }
+            initrd_name="initrd-generic-$version.gz"
+            cp "$(pis_path /boot/initrd.gz)" "$stage/$initrd_name" || { rm -rf "$stage"; return 1; }
+        else
+            version="${kernel#vmlinuz-huge-}"
+            initrd_name=""
+        fi
+        {
+            printf '# %s kernel %s\n' "${kernel#vmlinuz-}" "$version"
+            printf 'image = %s\n' "$kernel"
+            printf '  root = %s\n' "$root_device"
+            printf '  read-only\n'
+            [ -n "$swap_device" ] && printf '  append = "resume=%s"\n' "$swap_device"
+            [ -n "$initrd_name" ] && printf '  initrd = %s\n' "$initrd_name"
+            printf '  label = %s\n' "$label"
+            printf '  description = "Slackware %s"\n\n' "${kernel#vmlinuz-}"
+        } >> "$stage/elilo.conf"
+    done
+
+    grep -q '^image = ' "$stage/elilo.conf" || { rm -rf "$stage"; pis_error "No ELILO entries were generated."; return 1; }
+    for destination in "$stage"/vmlinuz-* "$stage"/initrd-*.gz; do
+        [ -f "$destination" ] || continue
+        pis_replace_file "$destination" "$elilo_dir/$(basename "$destination")" "elilo-kernel" "644" || { rm -rf "$stage"; return 1; }
+    done
+    pis_replace_file "$stage/elilo.conf" "$elilo_config" "elilo-config" "644" || { rm -rf "$stage"; return 1; }
+    rm -rf "$stage"
+    pis_state_write kernels "${kernels[*]}"
+}
+
+pis_arch() {
+    case "$(uname -m)" in
+        x86_64) printf '%s\n' x86_64 ;;
+        i?86) printf '%s\n' i586 ;;
+        *) return 1 ;;
+    esac
+}
+
+pis_download_install_package() {
+    local url="$1" filename="$2" expected_sha256="${3:-}" tmpdir package actual_sha256
+    tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/pis-pkg.XXXXXX")" || return 1
+    package="$tmpdir/$filename"
+    if command -v curl >/dev/null 2>&1; then
+        curl --fail --location --proto '=https' --tlsv1.2 --output "$package" "$url" || { rm -rf "$tmpdir"; return 1; }
+    else
+        wget --https-only --output-document="$package" "$url" || { rm -rf "$tmpdir"; return 1; }
+    fi
+    if [ -n "$expected_sha256" ]; then
+        actual_sha256="$(sha256sum "$package" | awk '{print $1}')"
+        [ "$actual_sha256" = "$expected_sha256" ] || { rm -rf "$tmpdir"; pis_error "The package checksum does not match."; return 1; }
+    fi
+    tar -tf "$package" >/dev/null 2>&1 || { rm -rf "$tmpdir"; pis_error "The downloaded package is invalid."; return 1; }
+    upgradepkg --install-new "$package"
+    local result=$?
+    rm -rf "$tmpdir"
+    return "$result"
+}
+
+pis_install_jaos_package() {
+    local component="$1" version="$2" expected_command="$3" arch base repository metadata filename
+    arch="$(pis_arch)" || { pis_error "No supported package is defined for this architecture."; return 1; }
+    [ "$arch" = x86_64 ] && base=slackware64-15.0 || base=slackware-15.0
+    repository="https://storage.googleapis.com/slackpacks.jaos.org/$base"
+    metadata="$(pis_temp_file)" || return 1
+    if command -v curl >/dev/null 2>&1; then
+        curl --fail --location --proto '=https' --tlsv1.2 --output "$metadata" "$repository/PACKAGES.TXT" || { rm -f "$metadata"; return 1; }
+    else
+        wget --https-only --output-document="$metadata" "$repository/PACKAGES.TXT" || { rm -f "$metadata"; return 1; }
+    fi
+    filename="$(sed -n -E "s/^PACKAGE NAME:[[:space:]]+(${component}-${version}-${arch}-[^[:space:]]+\\.t[xg]z)$/\\1/p" "$metadata" | tail -n 1)"
+    rm -f "$metadata"
+    [ -n "$filename" ] || { pis_error "No $component $version package was found in the Slackware 15.0 upstream repository."; return 1; }
+    pis_download_install_package "$repository/$component/$filename" "$filename" || return 1
+    command -v "$expected_command" >/dev/null 2>&1 || { pis_error "$component was not installed."; return 1; }
+}
+
+pis_install_slapt_get() {
+    pis_install_jaos_package slapt-get 0.11.11 slapt-get || return 1
+    pis_state_write slapt_get_install YES
+}
+
+pis_install_gslapt() {
+    command -v slapt-get >/dev/null 2>&1 || { pis_error "Install slapt-get first."; return 1; }
+    pis_install_jaos_package gslapt 0.5.11 gslapt || return 1
+    pis_state_write slapt_get_gslapt YES
+}
+
+pis_install_slapt_src() {
+    command -v slapt-get >/dev/null 2>&1 || { pis_error "Install slapt-get first."; return 1; }
+    pis_install_jaos_package slapt-src 0.3.9 slapt-src || return 1
+    pis_state_write slapt_get_slapt_src YES
+}
+
+pis_install_sbopkg() {
+    local filename="sbopkg-0.38.3-noarch-1_wsr.tgz"
+    pis_download_install_package "https://github.com/sbopkg/sbopkg/releases/download/0.38.3/$filename" "$filename" \
+        "b8de23f069ee48800e198007ba25df25bfa8f92ff5705e852b1b1cab58523355" || return 1
+    command -v sbopkg >/dev/null 2>&1 || { pis_error "sbopkg was not installed."; return 1; }
+    sbopkg -r || return 1
+    pis_state_write sbopkg YES
+}
+
+pis_install_slackpkgplus() {
+    local repos="$1" filename url config tmp repo
+    [ "$(uname -m)" = x86_64 ] || { pis_error "The bundled slackpkg+ choices target Slackware64 15.0."; return 1; }
+    for repo in $repos; do
+        case "$repo" in multilib|alienbob|restricted) ;; *) pis_error "Unknown slackpkg+ repository: $repo"; return 1 ;; esac
+    done
+    filename="slackpkg+-1.8.0-noarch-7mt.txz"
+    url="https://downloads.sourceforge.net/project/slackpkgplus/$filename"
+    pis_download_install_package "$url" "$filename" || return 1
+    config="$(pis_path /etc/slackpkg/slackpkgplus.conf)"
+    [ -f "$config" ] || { pis_error "slackpkgplus.conf was not installed."; return 1; }
+    tmp="$(pis_temp_file)" || return 1
+    cp "$config" "$tmp" || { rm -f "$tmp"; return 1; }
+    sed -i -E "s/^REPOPLUS=.*/REPOPLUS=( slackpkgplus $repos )/" "$tmp"
+    for repo in multilib alienbob restricted; do
+        sed -i -E "s|^[[:space:]]*(MIRRORPLUS\['$repo'\])|#\\1|" "$tmp"
+    done
+    for repo in $repos; do
+        sed -i -E "s|^[[:space:]]*#[[:space:]]*(MIRRORPLUS\['$repo'\]=https://)|\\1|" "$tmp"
+    done
+    grep -Fq 'REPOPLUS=(' "$tmp" || { rm -f "$tmp"; pis_error "Unable to configure slackpkg+."; return 1; }
+    pis_replace_file "$tmp" "$config" "slackpkg-plus" "644" || { rm -f "$tmp"; return 1; }
+    rm -f "$tmp"
+    pis_state_write slackpkg_slackpkgplus "$repos"
+    slackpkg update gpg && slackpkg update
+}
+
+pis_apply_slapt_repositories() {
+    local repos="$1" config tmp repo source_url
+    command -v slapt-get >/dev/null 2>&1 || { pis_error "Install slapt-get first."; return 1; }
+    [ "$(uname -m)" = x86_64 ] || { pis_error "These repository definitions target x86_64."; return 1; }
+    config="$(pis_path /etc/slapt-get/slapt-getrc)"
+    [ -f "$config" ] || { pis_error "$config was not found."; return 1; }
+    tmp="$(pis_temp_file)" || return 1
+    cp "$config" "$tmp" || { rm -f "$tmp"; return 1; }
+    for repo in $repos; do
+        case "$repo" in
+            slackonly) source_url="https://packages.slackonly.com/pub/packages/15.0-x86_64/" ;;
+            salix) source_url="https://download.salixos.org/x86_64/15.0/" ;;
+            salixextra) source_url="https://download.salixos.org/x86_64/extra-15.0/" ;;
+            slint) source_url="https://slackware.uk/slint/x86_64/slint-15.0/" ;;
+            *) rm -f "$tmp"; pis_error "Unknown repository: $repo"; return 1 ;;
+        esac
+        grep -Fqx "SOURCE=$source_url" "$tmp" || printf 'SOURCE=%s\n' "$source_url" >> "$tmp"
+    done
+    pis_replace_file "$tmp" "$config" "slapt-repositories" "644" || { rm -f "$tmp"; return 1; }
+    rm -f "$tmp"
+    pis_state_write slapt_get_extra_repo "$repos"
+    slapt-get --update
+}
+
+pis_system_check() {
+    local report="$1" version arch issues=0
+    version="$(cat "$(pis_path /etc/slackware-version)" 2>/dev/null || printf 'Unknown')"
+    arch="$(uname -m)"
+    {
+        printf 'PIS system check\n\n'
+        printf 'Slackware: %s\nArchitecture: %s\n\n' "$version" "$arch"
+        if printf '%s' "$version" | grep -q '^Slackware 15\.0'; then
+            printf '[OK] Supported Slackware release\n'
+        else
+            printf '[WARN] PIS 0.3.0 targets Slackware 15.0\n'; issues=$((issues + 1))
+        fi
+        for command_name in dialog sed awk install mktemp; do
+            if command -v "$command_name" >/dev/null 2>&1; then
+                printf '[OK] %s available\n' "$command_name"
+            else
+                printf '[FAIL] %s missing\n' "$command_name"; issues=$((issues + 1))
+            fi
+        done
+        [ -f "$(pis_path /etc/inittab)" ] && printf '[OK] /etc/inittab found\n' || { printf '[FAIL] /etc/inittab missing\n'; issues=$((issues + 1)); }
+        [ -f "$(pis_path /etc/slackpkg/mirrors)" ] && printf '[OK] slackpkg mirror list found\n' || { printf '[WARN] slackpkg mirror list missing\n'; issues=$((issues + 1)); }
+        [ -f "$(pis_path /boot/efi/EFI/Slackware/elilo.conf)" ] && printf '[OK] ELILO configuration found\n' || printf '[INFO] ELILO configuration not detected\n'
+        printf '\nResult: %s issue(s) detected.\n' "$issues"
+    } > "$report"
+    return 0
+}

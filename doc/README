@@ -1,280 +1,116 @@
 ------------------------------------------------------------------------
-
-                              README
-
+             Slackware Post-Install Scripts (PIS) 0.3.0
 ------------------------------------------------------------------------
 
-               Slackware Post-Install Scripts (PIS)
-
-                         Version 0.2
-
-           'Let the Slackers be a little bit lazy. ;)'
-    
-------------------------------------------------------------------------
-
-
-Contents
-========
+               'Let the Slackers be a little bit lazy. ;)'
 
 1. Introduction
+===============
+
+PIS is a set of Bash scripts that assists with selected Slackware 15.0
+post-installation tasks. Its dialog menus resemble the Slackware installer
+and preserve the distribution's transparent, text-file-oriented approach.
+
+PIS does not duplicate Slackware's network or service configuration tools.
+
 2. Features
-3. Important Notes
-4. Instalation
-5. Running
-6. Saving and Loading a Profile File
-7. Licence
-8. Reporting bugs and getting help
-9. Acknowledgments
+===========
 
+PIS 0.3.0 can:
 
-1.Introduction
-==============
+ * display the recorded PIS configuration and run a system check;
+ * set the locale and console keyboard map;
+ * select CLI or GUI login;
+ * add users without saving their passwords;
+ * activate or deactivate wheel administration after visudo validation;
+ * select a system-wide startx session and X keyboard layout;
+ * publish installed Huge and Generic kernels to an existing ELILO setup;
+ * select a Slackware 15.0 slackpkg mirror by its URL;
+ * install and configure selected package-management tools;
+ * make automatic backups before changing configuration files;
+ * restore earlier files from the PIS menu; and
+ * export and apply validated, versioned configuration profiles.
 
-Slackware Post-Install Scripts (PIS) are a set of shell scripts for
-automating the most tedious Slackware version 15.0 post-install
-configuration tasks.
+3. Safety and recovery
+======================
 
-PIS presents a set of command line menus similar to those of the
-Slackware installer and aim to simplify and make transparent the main
-system settings after a system installation.
+PIS edits standard Slackware configuration files. Before replacing a file,
+version 0.3.0 saves a copy under /var/log/PIS/backups and records it in a
+private index. Use the Restore option or run "pis --restore" to recover a
+selected copy. The file being replaced during a restore is also backed up.
 
+Depending on the selected operations, PIS can change:
 
-2.Features
-==========
+ /etc/profile.d/lang.sh
+ /etc/profile.d/lang.csh
+ /etc/rc.d/rc.keymap
+ /etc/inittab
+ /etc/sudoers
+ /etc/X11/xinit/xinitrc
+ /etc/X11/xorg.conf.d/90-keyboard-layout-evdev.conf
+ /etc/slackpkg/mirrors
+ /etc/slackpkg/slackpkgplus.conf
+ /etc/slapt-get/slapt-getrc
+ /boot/efi/EFI/Slackware/elilo.conf
 
-With PIS v0.2 scripts Slackware users can:
+The kernel module only operates when an existing ELILO configuration is
+detected. It generates and checks all selected entries before publishing the
+new configuration. A resume parameter is included only when active swap is
+detected.
 
- * Set system locale (language, country and character encoding)
- 
- * Configure login mode (GUI or CLI)
- 
- * Add new users to system
- 
- * Set the 'sudo' admin support
- 
- * Set 'Huge' and 'Generic' kernels to boot manager (Elilo)
- 
- * Install/Configure different package managers:
-    
-    - Slackpkg:
+4. Profiles
+===========
 
-        * Set main mirror
-        * Install Slackpkg+ extentions
-    
-    - Sbopkg:
+Export the settings recorded by PIS:
 
-        * Install sbopkg
-    
-    - Slapt-get:
+ # pis --output workstation.pis
 
-        * Install slapt-get and extra repositories
-        * Install Gslapt (GTK-based GUI for slapt-get)
-        * Install slapt-src (slapt-get for Slackbuilds.org)
-        * Install slapt-update-notifier
+Review, validate and apply a profile:
 
+ # pis --file workstation.pis
 
-3. Important Notes
-==================
+Profiles identify their format with PIS_PROFILE_VERSION=1. Mirrors are saved
+as URLs instead of line numbers. Only known keys and values are accepted.
+Repositories for Slackware-current are rejected by the Slackware 15.0
+profile. User passwords are never recorded or exported; a new password is
+requested when a profile needs to create an absent user.
 
-To perform the system settings, PIS v0.2 scripts will modify some 
-important system files by using command line tools, such as the stream 
-editor 'sed', so bypassing the use of the conventional tools.
+Profiles created by PIS 0.2 are deliberately rejected because their user
+entry may expose a plaintext password. Create a fresh profile with PIS 0.3.0.
 
-So, if you want to feel more secure in using the PIS scripts, it would
-be interesting to back up the following files, in case you need to
-restore manually the respective settings:
+5. Package-management integrations
+===================================
 
- * To set the system locale (language and country):
-   
-    /etc/profile.d/lang.sh
-    /etc/profile.d/lang.csh
+PIS uses packages intended for Slackware 15.0 and checks the architecture
+before using architecture-specific definitions. It no longer creates links
+between incompatible OpenSSL library versions.
 
+Third-party repositories remain optional. Read their documentation and
+inspect package origins before installing or upgrading software.
 
- * To set the command line keymap (keyboard character encoding):
- 
-    /etc/rc.d/rc.keymap
+6. Installation and operation
+==============================
 
-  
- * To select the login mode (GUI or CLI):
- 
-    /etc/inittab
+Build and install PIS with its SlackBuild, then run it as root:
 
- 
- * To add different kernels types/versions to boot manager Elilo:
- 
-    /boot/efi/EFI/Slackware/elilo.conf
+ # installpkg pis-0.3.0-noarch-1_SBo.tgz
+ # pis
 
- 
- * To enable the administrative group 'wheel':
- 
-    /etc/sudoers
+Options:
 
- 
- * To set the default desktop/window manager for the X environment:
- 
-    /etc/X11/xinit/xinitrc
+ -h, --help          show command help
+ -v, --version       show the PIS version
+ -c, --check         show the compatibility and configuration check
+ -o, --output FILE   export the current profile
+ -f, --file FILE     validate and apply a profile
+     --restore       open the backup restoration menu
 
+7. License and support
+======================
 
- * To set the main mirror of the slackpkg package manager:
- 
-    /etc/slackpkg/mirrors
+Copyright (c) 2022-2026 Guilherme Esmeraldo.
 
+PIS is free software distributed under the GNU General Public License,
+version 3 or later. The source repository is:
 
-4.Instalation
-=============
-
-To install PIS, you have to: 
-
- 1. Download the PIS Slackware package at
-    <https://slackscripts.com/download.html> or by using some download
-    manager, as show bellow:
-
-
-$ wget http://www.slackscripts.com/packages/pis-0.2-noarch-2.txz
-
-
- 2. Install PIS, running, as root, the command 'installpkg' passing
-    the downloaded package name as parameter:
-
-
-# installpkg pis-0.2-noarch-2.txz
-
-
-After installing the package, the PIS scripts are ready to be used to
-perform the main system settings.
-
-
-5.Running
-=========
-
-To run PIS scripts, as root, you have to run the command:
-
-
-# pis
-
-
-It will open the command line main menu of PIS scripts in which the
-Slackware users can perform the main system settings.
-
-
-6. Saving and Loading a Profile File
-====================================
-
-A Profile File is a text file which contains the configurations setted
-to a system by using the PIS scripts. A Profile File can be used to
-automate the main system settings by using PIS, for example, in new
-system installations at the same or others machines.
-
-
-6.1 Savind a Profile File
--------------------------
- 
-To generate a profile file, before that you must perform the system
-settings by using PIS scripts. After that, to register the performed
-settings in a Profile File, as root, you can run one of the commands
-below:
-
-
-# pis -o <profile_file_name>
-
-
-or:
-
-
-# pis --output <profile_file_name>
-
-
-With these commmands, it will be created a Profile File with the name
-<profile_file_name>. It follows an example of the contents of a Profile
-File:
-
-
--------------------------------cut-here---------------------------------
-language_country=pt_BR.utf8
-keyboard_map=br-abnt2.map.gz
-login=GUI
-kernels=vmlinuz-generic-5.15.19 vmlinuz-generic-5.15.80
-wheel_group=YES
-user=garme password 0
-gui_desktop=xinitrc.xfce
-gui_keyboard=br:
-slackpkg_mirror=75
-slackpkg_slackpkgplus=alienbob restricted
-sbopkg=YES
-slapt_get_install=YES
-slapt_get_extra_repo=slackonly slackers
-slapt_get_slapt_src=YES
--------------------------------cut-here---------------------------------
-
-
-6.2 Loading a Profile File
---------------------------
-
-To load and apply the settings from a Profile File to the system, as
-root, you can run one of the following commands:
-
-
-# pis -f <profile_file_name>
-
-
-or:
-
-
-# pis --file <profile_file_name>
-
-
-With these commmands, the settings from the Profile File named
-<profile_file_name> will be loaded and applied to the system.
-
-
-7. Licence
-==========
-
-Slackware Post-Install Scripts (PIS) was developed by Guilherme
-Esmeraldo <guilherme@slackscripts.com>.
-
------
-
-Copyright (c) 2022 Guilherme Esmeraldo. All rights reserved.
-PIS scripts are free software: you can redistribute them and/or modify
-them under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details at
-<https://gnu.org/licenses/gpl.html>.
-
------
-
-This file is part of Slackware Post-Install Scripts (PIS).
-Permission is granted to copy, distribute and/or modify this document
-under the terms of the GNU Free Documentation License, Version 1.3 or
-any later version published by the Free Software Foundation.
-
-
-8. Reporting bugs and getting help
-==================================
-
-The PIS project has the following servers in which is possible to
-report bugs and get help:
-
-PIS official web page: <https://slackscripts.com/>
-
-PIS official github: <https://github.com/garme/pis>
-
-
-9. Acknowledgments
-==================
-
-Slackware Post-Install Scripts (PIS) was developed by Guilherme
-Esmeraldo. PIS would not be what it is today without the invaluable
-efforts of these people:
-
- * Richard Stallman, the GNU Project: <https://www.gnu.org/>
- 
- * Linus Torvalds, the Linux Kernel: <https://kernel.org/>
- 
- * Patrick Volkerding, the Slackware Linux: <http://www.slackware.com/>
+ https://github.com/garme/pis

@@ -1,40 +1,18 @@
 #!/bin/bash
-# ===================================================================#
-# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
-# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
-# This is free software: you are free to change and redistribute it. # 
-# There is NO WARRANTY, to the extent permitted by law.              #
-#                                                                    #
-# Version: 0.2                                                       #
-#====================================================================#
-
-
-PIS_DIR="/var/log/PIS"
-DIALOG_OK=0
-DIALOG_CANCEL=1
-DIALOG_ESC=255
-
-MIRRORS=$(echo $(cat -n /etc/slackpkg/mirrors | sed -n "/15\.0/p" | sed -n "/:/p" | sed -n "s/# //p" | tail -n +2) )
-#echo $MIRRORS
-#exit 0
-OPCAO=$(sh -c "dialog  --stdout \
---backtitle \"Slackware Post-Install Scripts v0.2\" \
---title \"Slackpkg - Set Mirror:\" \
---menu  \"Select a slackpkg mirror:\" \
-0 0 10 \
-$MIRRORS")
-status=$?
-[ $status -eq $DIALOG_CANCEL ] && exit 0
-[ $status -eq $DIALOG_ESC ] && exit 0
-
-if [ $status -eq 0 ]; then
-	sed -i "s/\(^http\)/# http/" /etc/slackpkg/mirrors
-	sed -i "s/\(^ftp\)/# ftp/" /etc/slackpkg/mirrors
-
-	sed -i "$OPCAO s/\(^# \)//" /etc/slackpkg/mirrors
-    
-    echo "$OPCAO" > "$PIS_DIR/slackpkg_mirror"
-
-	dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "New mirror has been setted to \n$(sed -n "$OPCAO p" /etc/slackpkg/mirrors)!" 6 0
+PIS_SBIN="${PIS_SBIN:-/sbin}"; . "$PIS_SBIN/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
+pis_init || exit 1
+mirrors="$(pis_path /etc/slackpkg/mirrors)"
+[ -r "$mirrors" ] || { pis_error "$mirrors was not found."; exit 1; }
+items=()
+while IFS= read -r url; do items+=("$url" "Slackware 15.0"); done < <(
+    sed -E 's/^[[:space:]]*#[[:space:]]*//' "$mirrors" | grep -E '^https?://.*slackware(64)?-15\.0/?$' | sort -u
+)
+[ "${#items[@]}" -gt 0 ] || { pis_error "No Slackware 15.0 HTTP(S) mirrors were found."; exit 1; }
+choice=$(dialog --stdout --backtitle "$PIS_BACKTITLE" --title "Slackpkg Mirror" \
+    --menu "Select one mirror. Current: $(pis_state_read slackpkg_mirror)" 0 0 14 "${items[@]}") || exit 0
+if pis_apply_slackpkg_mirror "$choice"; then
+    pis_info "Slackpkg Mirror" "The mirror was set to:\n$choice"
+else
+    pis_error "The slackpkg mirror could not be changed."
+    exit 1
 fi
-

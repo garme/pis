@@ -1,53 +1,19 @@
 #!/bin/bash
-# ===================================================================#
-# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
-# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
-# This is free software: you are free to change and redistribute it. # 
-# There is NO WARRANTY, to the extent permitted by law.              #
-#                                                                    #
-# Version: 0.2                                                       #
-#====================================================================#
-
-
-PIS_DIR="/var/log/PIS"
-DIALOG_OK=0
-DIALOG_CANCEL=1
-DIALOG_ESC=255
-
-while [ 1 ] 
-do
-
-OPCAO=$(sh -c "dialog  --stdout \
---backtitle \"Slackware Post-Install Scripts v0.2\" \
---title \"Slapt-get Package Manager\" \
---menu \"Which option would you like?\"  \
-0 0 0  \
-\"1\"  \"Install 'slapt-get'\" \
-\"2\"  \"Install 'slapt-get' extra repositories?\" \
-\"3\"  \"Install 'Gslapt' (GTK-based GUI for 'slapt-get')\" \
-\"4\"  \"Install 'slapt-src'\" \
-\"5\"  \"Install 'slapt-update-notifier'\"\
-")
-status=$?
-[ $status -eq $DIALOG_CANCEL ] && exit 0
-[ $status -eq $DIALOG_ESC ] && exit 0
-
-case $OPCAO in
-"1")
-	/sbin/pis_slapt_get_install
-	;;
-"2")
-	/sbin/pis_slapt_get_install_extra_repositories
-	;;
-"3")
-	/sbin/pis_slapt_get_install_gslapt
-	;;
-"4")
-	/sbin/pis_slapt_src_install
-	;;
-"5")
-	/sbin/pis_slapt_update_notifier_install
-	;;
-esac
-
+PIS_SBIN="${PIS_SBIN:-/sbin}"; . "$PIS_SBIN/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
+pis_init || exit 1
+while true; do
+    choice=$(dialog --stdout --backtitle "$PIS_BACKTITLE" --title "Slapt-get Tools" \
+        --menu "All package installers target Slackware 15.0 and the current architecture." 0 0 0 \
+        slapt-get "Install slapt-get 0.11.11" \
+        repositories "Add compatible third-party repositories" \
+        gslapt "Install GSlapt 0.5.11" \
+        slapt-src "Install slapt-src 0.3.9" \
+        notifier "Build slapt-update-service through sbopkg") || exit 0
+    case "$choice" in
+        slapt-get) "$PIS_SBIN/pis_slapt_get_install" ;;
+        repositories) "$PIS_SBIN/pis_slapt_get_install_extra_repositories" ;;
+        gslapt) "$PIS_SBIN/pis_slapt_get_install_gslapt" ;;
+        slapt-src) "$PIS_SBIN/pis_slapt_src_install" ;;
+        notifier) "$PIS_SBIN/pis_slapt_update_notifier_install" ;;
+    esac
 done

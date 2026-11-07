@@ -1,30 +1,12 @@
 #!/bin/bash
-# ===================================================================#
-# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
-# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
-# This is free software: you are free to change and redistribute it. # 
-# There is NO WARRANTY, to the extent permitted by law.              #
-#                                                                    #
-# Version: 0.2                                                       #
-#====================================================================#
-
-PIS_DIR="/var/log/PIS"
-
-dialog --stdout \
---backtitle "Slackware Post-Install Scripts v0.2" \
---title "Sbopkg - Install" \
---yesno "Would you like to install the Slackbuilds.org package browser (sbopkg)?" \
-6 55 
-OPTION=$?
-
-if [ $OPTION -eq 0 ]
-then
-	wget https://github.com/sbopkg/sbopkg/releases/download/0.38.2/sbopkg-0.38.2-noarch-1_wsr.tgz -P /tmp
-	installpkg /tmp/sbopkg-0.38.2-noarch-1_wsr.tgz
-	sbopkg -r
-    
-    echo "YES" > "$PIS_DIR/sbopkg"
-
-	dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "Sbopkg is ready for browsing Slackbuilds.org packages!" 6 50
+PIS_SBIN="${PIS_SBIN:-/sbin}"; . "$PIS_SBIN/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
+pis_init || exit 1
+if command -v sbopkg >/dev/null 2>&1; then
+    dialog --backtitle "$PIS_BACKTITLE" --title "Sbopkg" --yesno "sbopkg is installed. Synchronize its repository now?" 7 62 || exit 0
+    sbopkg -r || { pis_error "The sbopkg repository could not be synchronized."; exit 1; }
+    pis_state_write sbopkg YES
+else
+    dialog --backtitle "$PIS_BACKTITLE" --title "Sbopkg" --yesno "Install sbopkg 0.38.3 and synchronize SlackBuilds.org?" 7 62 || exit 0
+    pis_install_sbopkg || { pis_error "sbopkg could not be installed."; exit 1; }
 fi
-
+pis_info "Sbopkg" "sbopkg is ready to use."

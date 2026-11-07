@@ -1,0 +1,3 @@
+#!/bin/bash
+# Non-interactive dialog stub used only by the PIS regression tests.
+exit 0

@@ -1,0 +1,35 @@
+#!/bin/bash
+
+PIS_SBIN="${PIS_SBIN:-/sbin}"
+. "$PIS_SBIN/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
+pis_init || exit 1
+
+[ -s "$PIS_BACKUP_INDEX" ] || { pis_info "Restore" "No PIS backups are available."; exit 0; }
+entries="$(pis_temp_file)" || exit 1
+if command -v tac >/dev/null 2>&1; then tac "$PIS_BACKUP_INDEX" > "$entries"; else tail -r "$PIS_BACKUP_INDEX" > "$entries"; fi
+menu=()
+originals=()
+backups=()
+count=0
+while IFS=$'\t' read -r stamp reason original backup; do
+    [ -e "$backup" ] || continue
+    count=$((count + 1))
+    menu+=("$count" "$stamp | $reason | $original")
+    originals[$count]="$original"
+    backups[$count]="$backup"
+done < "$entries"
+rm -f "$entries"
+
+[ "$count" -gt 0 ] || { pis_info "Restore" "No usable PIS backups are available."; exit 0; }
+choice=$(dialog --stdout --backtitle "$PIS_BACKTITLE" --title "Restore Configuration" \
+    --menu "Select a backup to restore:" 22 78 14 "${menu[@]}") || exit 0
+original="${originals[$choice]}"
+backup="${backups[$choice]}"
+dialog --backtitle "$PIS_BACKTITLE" --title "Confirm Restore" \
+    --yesno "Restore:\n$original\n\nfrom:\n$backup\n\nThe current file will be backed up first." 14 72 || exit 0
+if pis_restore_backup "$backup" "$original"; then
+    pis_info "Restore" "The selected configuration was restored successfully."
+else
+    pis_error "The configuration could not be restored."
+    exit 1
+fi

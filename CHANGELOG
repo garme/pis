@@ -1,0 +1,18 @@
+PIS 0.3.0 - 2026-11-07
+
+* Added automatic backup and restoration of changed configuration files.
+* Added a configuration/status screen and a system compatibility check.
+* Added a shared implementation used by menus and profile application.
+* Added versioned, validated profiles that never store passwords.
+* Changed slackpkg profiles to store mirror URLs instead of line numbers.
+* Added current-state information to configuration menus.
+* Hid password input and stopped recording user passwords.
+* Preserved supplementary groups when adding a user to wheel.
+* Validated sudoers changes with visudo.
+* Reworked ELILO publication and initrd generation, including NVMe roots.
+* Stopped treating the root filesystem as a resume device.
+* Removed incompatible OpenSSL library symlink creation.
+* Updated package integrations for Slackware 15.0 and rejected current repos.
+* Added download, package and post-installation result checks.
+* Generated X keyboard menus from the installed XKB database.
+* Added regression tests for core configuration operations.

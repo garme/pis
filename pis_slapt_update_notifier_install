@@ -1,20 +1,9 @@
 #!/bin/bash
-# ===================================================================#
-# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
-# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
-# This is free software: you are free to change and redistribute it. # 
-# There is NO WARRANTY, to the extent permitted by law.              #
-#                                                                    #
-# Version: 0.2                                                       #
-#====================================================================#
-
-PIS_DIR="/var/log/PIS"
-
-wget https://software.jaos.org/slackpacks/slackware64-15.0/slapt-update-service/slapt-update-service-0.5.3-x86_64-2.txz -P /tmp
-installpkg /tmp/slapt-update-service-0.5.3-x86_64-2.txz
-slapt-get --update	
-
-echo "YES" > "$PIS_DIR/slapt_get_slapt_update_notifier"
-
-dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "Slapt-update-notifier is ready for notifing updates available via slapt-get and gslapt! To use it, you must run slapt-update-notifier at the graphical environment." 8 55
-
+PIS_SBIN="${PIS_SBIN:-/sbin}"; . "$PIS_SBIN/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
+pis_init || exit 1
+command -v sbopkg >/dev/null 2>&1 || { pis_error "Install sbopkg first. slapt-update-service has no prebuilt package from its upstream project."; exit 1; }
+dialog --backtitle "$PIS_BACKTITLE" --title "Slapt Update Service" \
+    --yesno "Build and install slapt-update-service from SlackBuilds.org using sbopkg? Its dependencies will be shown by sbopkg." 9 70 || exit 0
+sbopkg -i slapt-update-service || { pis_error "slapt-update-service could not be installed."; exit 1; }
+pis_state_write slapt_get_slapt_update_notifier YES
+pis_info "Slapt Update Service" "slapt-update-service was installed through SlackBuilds.org."

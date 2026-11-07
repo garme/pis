@@ -1,312 +1,125 @@
 #!/bin/bash
-# ===================================================================#
-# Copyright (c) 2022 Guilherme Esmeraldo - License GPLv3+:           #
-# GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.    #
-# This is free software: you are free to change and redistribute it. # 
-# There is NO WARRANTY, to the extent permitted by law.              #
-#                                                                    #
-# Version: 0.2                                                       #
-#====================================================================#
 
+PIS_SBIN="${PIS_SBIN:-/sbin}"
+. "$PIS_SBIN/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
+pis_init || exit 1
 
-PIS_DIR="/var/log/PIS"
+profile="${1:-}"
+[ -r "$profile" ] || { pis_error "Profile file not found: $profile"; exit 1; }
 
-# Create the directory to log PIS settings.
-[ ! -d "$PIS_DIR" ] && mkdir "$PIS_DIR"
+declare -A settings
+allowed_keys=" PIS_PROFILE_VERSION language_country keyboard_map login kernels wheel_group user user_wheel gui_desktop gui_keyboard slackpkg_mirror slackpkg_slackpkgplus sbopkg slapt_get_install slapt_get_extra_repo slapt_get_gslapt slapt_get_slapt_src slapt_get_slapt_update_notifier "
+line_number=0
+while IFS= read -r line || [ -n "$line" ]; do
+    line_number=$((line_number + 1))
+    [ -z "$line" ] && continue
+    case "$line" in \#*) continue ;; esac
+    case "$line" in *=*) ;; *) pis_error "Invalid profile line $line_number."; exit 1 ;; esac
+    key="${line%%=*}"
+    value="${line#*=}"
+    case "$allowed_keys" in *" $key "*) ;; *) pis_error "Unknown profile key on line $line_number: $key"; exit 1 ;; esac
+    [ -z "${settings[$key]+set}" ] || { pis_error "Duplicate profile key: $key"; exit 1; }
+    settings[$key]="$value"
+done < "$profile"
 
-DIALOG_OK=0
-DIALOG_CANCEL=1
-DIALOG_ESC=255
+[ "${settings[PIS_PROFILE_VERSION]:-}" = "1" ] || {
+    pis_error "This profile is not in the secure PIS 0.3 format. Re-export it with PIS 0.3; legacy profiles may contain plaintext passwords."
+    exit 1
+}
 
-# Verifies if has a parameter (file name)
-[ -n "$1" ] && FILE=$1 || exit 0
+valid_yes_no() { [ "$1" = YES ] || [ "$1" = NO ]; }
+valid_list() {
+    local values="$1" allowed="$2" item
+    for item in $values; do case " $allowed " in *" $item "*) ;; *) return 1 ;; esac; done
+}
 
-while read LINHA
-do
-    # Disconsider empty lines
-    [ "$LINHA" ] || continue
-    
-    # Disconsider commented lines
-    [ "$(echo $LINHA | cut -c1)" = "#" ] && continue
+if [ -n "${settings[language_country]:-}" ]; then
+    locale -a | grep -Fqx "${settings[language_country]}" || { pis_error "Unavailable locale: ${settings[language_country]}"; exit 1; }
+fi
+if [ -n "${settings[keyboard_map]:-}" ]; then
+    find "$(pis_path /usr/share/kbd/keymaps)" -type f -name "${settings[keyboard_map]}" -print -quit | grep -q . || { pis_error "Unavailable keymap: ${settings[keyboard_map]}"; exit 1; }
+fi
+[ -z "${settings[login]:-}" ] || [ "${settings[login]}" = CLI ] || [ "${settings[login]}" = GUI ] || { pis_error "Invalid login mode."; exit 1; }
+[ -z "${settings[wheel_group]:-}" ] || valid_yes_no "${settings[wheel_group]}" || { pis_error "Invalid wheel setting."; exit 1; }
+[ -z "${settings[user_wheel]:-}" ] || valid_yes_no "${settings[user_wheel]}" || { pis_error "Invalid user wheel setting."; exit 1; }
+[ -z "${settings[user]:-}" ] || printf '%s' "${settings[user]}" | grep -Eq '^[a-z_][a-z0-9_-]{0,31}$' || { pis_error "Invalid username in profile."; exit 1; }
+[ -z "${settings[gui_desktop]:-}" ] || printf '%s' "${settings[gui_desktop]}" | grep -Eq '^xinitrc\.[A-Za-z0-9._+-]+$' || { pis_error "Invalid X session in profile."; exit 1; }
+[ -z "${settings[gui_keyboard]:-}" ] || printf '%s' "${settings[gui_keyboard]}" | grep -Eq '^[A-Za-z0-9_-]+:[A-Za-z0-9_+-]*$' || { pis_error "Invalid X keyboard setting."; exit 1; }
+[ -z "${settings[slackpkg_mirror]:-}" ] || printf '%s' "${settings[slackpkg_mirror]}" | grep -Eq '^https?://[^[:space:]]*slackware(64)?-15\.0/?$' || { pis_error "The profile mirror is not for Slackware 15.0."; exit 1; }
+valid_list "${settings[slackpkg_slackpkgplus]:-}" "multilib alienbob restricted" || { pis_error "Invalid slackpkg+ repository."; exit 1; }
+valid_list "${settings[slapt_get_extra_repo]:-}" "slackonly salix salixextra slint" || { pis_error "Invalid or incompatible slapt-get repository."; exit 1; }
+for key in sbopkg slapt_get_install slapt_get_gslapt slapt_get_slapt_src slapt_get_slapt_update_notifier; do
+    [ -z "${settings[$key]:-}" ] || valid_yes_no "${settings[$key]}" || { pis_error "Invalid value for $key."; exit 1; }
+done
+for kernel in ${settings[kernels]:-}; do
+    printf '%s' "$kernel" | grep -Eq '^vmlinuz-(generic|huge)-[A-Za-z0-9._+-]+$' || { pis_error "Invalid kernel name: $kernel"; exit 1; }
+done
 
-    CHAVE=$(echo "$LINHA" | cut -d = -f 1)
-    VALOR=$(echo "$LINHA" | cut -d = -f 2)
+preview="$(pis_temp_file)" || exit 1
+{
+    printf 'Validated PIS profile\n\n'
+    for key in language_country keyboard_map login kernels wheel_group user user_wheel gui_desktop gui_keyboard slackpkg_mirror slackpkg_slackpkgplus sbopkg slapt_get_install slapt_get_extra_repo slapt_get_gslapt slapt_get_slapt_src slapt_get_slapt_update_notifier; do
+        [ -n "${settings[$key]:-}" ] && printf '%-30s %s\n' "$key" "${settings[$key]}"
+    done
+    printf '\nEach changed system file will be backed up automatically.\n'
+} > "$preview"
+dialog --backtitle "$PIS_BACKTITLE" --title "Apply Profile" --textbox "$preview" 23 78
+rm -f "$preview"
+dialog --backtitle "$PIS_BACKTITLE" --title "Apply Profile" --yesno "Apply this validated profile?" 7 50 || exit 0
 
-    case "$CHAVE" in
-    "language_country")
-        echo "$VALOR" > "$PIS_DIR/$CHAVE"
+failures=""
+apply_step() {
+    local name="$1"; shift
+    if ! "$@"; then failures="${failures}${failures:+, }$name"; fi
+}
 
-        sed -i "0,/\(^export\)/s/\(^export LANG=.*\)/export LANG=$VALOR/" /etc/profile.d/lang.sh
-        sed -i "0,/\(^setenv\)/s/\(^setenv LANG .*\)/setenv LANG $VALOR/" /etc/profile.d/lang.csh
-         ;;
-
-    "keyboard_map")
-        echo "$VALOR" > "$PIS_DIR/$CHAVE"
-
-        sed -i "s/\(^ .*loadkeys\)\( .*\.map.*\)/\1 $VALOR/" /etc/rc.d/rc.keymap
-        /usr/bin/loadkeys "$VALOR"
-        ;;    
-
-    "login")
-        echo "$VALOR" > "$PIS_DIR/$CHAVE"
-
-        if [ "$VALOR" = "CLI" ]; then
-			sed -i "s/id:.:initdefault:/id:3:initdefault:/" /etc/inittab
+[ -z "${settings[language_country]:-}" ] || apply_step language_country pis_apply_locale "${settings[language_country]}"
+[ -z "${settings[keyboard_map]:-}" ] || apply_step keyboard_map pis_apply_console_keymap "${settings[keyboard_map]}"
+[ -z "${settings[login]:-}" ] || apply_step login pis_apply_login_mode "${settings[login]}"
+[ -z "${settings[wheel_group]:-}" ] || apply_step wheel_group pis_apply_wheel "${settings[wheel_group]}"
+[ -z "${settings[gui_desktop]:-}" ] || apply_step gui_desktop pis_apply_desktop "${settings[gui_desktop]}"
+if [ -n "${settings[gui_keyboard]:-}" ]; then
+    layout="${settings[gui_keyboard]%%:*}"; variant="${settings[gui_keyboard]#*:}"
+    apply_step gui_keyboard pis_apply_x_keyboard "$layout" "$variant"
+fi
+[ -z "${settings[slackpkg_mirror]:-}" ] || apply_step slackpkg_mirror pis_apply_slackpkg_mirror "${settings[slackpkg_mirror]}"
+[ "${settings[slapt_get_install]:-NO}" != YES ] || apply_step slapt_get_install pis_install_slapt_get
+[ -z "${settings[slapt_get_extra_repo]:-}" ] || apply_step slapt_get_extra_repo pis_apply_slapt_repositories "${settings[slapt_get_extra_repo]}"
+[ "${settings[slapt_get_gslapt]:-NO}" != YES ] || apply_step slapt_get_gslapt pis_install_gslapt
+[ "${settings[slapt_get_slapt_src]:-NO}" != YES ] || apply_step slapt_get_slapt_src pis_install_slapt_src
+[ "${settings[sbopkg]:-NO}" != YES ] || apply_step sbopkg pis_install_sbopkg
+[ -z "${settings[slackpkg_slackpkgplus]:-}" ] || apply_step slackpkg_slackpkgplus pis_install_slackpkgplus "${settings[slackpkg_slackpkgplus]}"
+if [ "${settings[slapt_get_slapt_update_notifier]:-NO}" = YES ]; then
+    if command -v sbopkg >/dev/null 2>&1; then
+        if sbopkg -i slapt-update-service; then
+            pis_state_write slapt_get_slapt_update_notifier YES
         else
-
-			sed -i "s/id:.:initdefault:/id:4:initdefault:/" /etc/inittab
+            failures="${failures}${failures:+, }slapt_get_slapt_update_notifier"
         fi
-        ;;    
+    else
+        failures="${failures}${failures:+, }slapt_get_slapt_update_notifier"
+    fi
+fi
+[ -z "${settings[kernels]:-}" ] || apply_step kernels pis_apply_kernels "${settings[kernels]}"
 
-    "kernels")
-        echo "$VALOR" > "$PIS_DIR/$CHAVE"
-
-        reg=($VALOR)
-
-        if [ ${#reg[@]} -ne 0 ]; then 
-
-            mv /boot/efi/EFI/Slackware/elilo.conf{,.old}
-            
-            cat << EOF > /boot/efi/EFI/Slackware/elilo.conf
-#Generated automatically by Slackware Post-Install Scripts v0.2 (PIS)
-
-default=${reg[0]}
-prompt
-chooser=simple
-message=message.txt
-delay=100
-timeout=100
-
-EOF
-            partition=$(/usr/share/mkinitrd/mkinitrd_command_generator.sh | sed "/\(^#\)/d" | sed "/\(^$\)/d" | sed "s/.*-r \(\/dev\/....\).*/\1/"i)
-
-            for i in ${reg[@]} 
-            do 
-              VERSION=$(echo "$i" | cut -d "-" -f3)
-              if [[ "$i" =~ "generic" ]]; then
-                  mkinitrd_command=$(sh /usr/share/mkinitrd/mkinitrd_command_generator.sh -k "$VERSION"| sed "/\(^#\)/d" | sed "/\(^$\)/d")
-                  sh $mkinitrd_command
-                  cp /boot/initrd.gz /boot/efi/EFI/Slackware/initrd-generic-"$VERSION".gz
-                  cp -L /boot/"$i" /boot/efi/EFI/Slackware/"$i"
-                
-                  echo "# generic kernel v$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
-                  echo "image = vmlinuz-generic-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
-                  echo "  root = $partition" >> /boot/efi/EFI/Slackware/elilo.conf
-                  echo "  read-only" >> /boot/efi/EFI/Slackware/elilo.conf
-                  echo "  append = \"resume=$partition\"" >> /boot/efi/EFI/Slackware/elilo.conf
-                  echo "  initrd = initrd-generic-$VERSION.gz" >> /boot/efi/EFI/Slackware/elilo.conf
-                  echo "  label = vmlinuz-generic-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
-                  echo "  description = \"Slackware 64 Generic $VERSION\"" >> /boot/efi/EFI/Slackware/elilo.conf
-                  echo "" >> /boot/efi/EFI/Slackware/elilo.conf
-              else
-                  cp -L /boot/"$i" /boot/efi/EFI/Slackware/"$i"
-                
-                  echo "# huge kernel v$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
-                  echo "image = vmlinuz-huge-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
-                  echo "  root = $partition" >> /boot/efi/EFI/Slackware/elilo.conf
-                  echo "  read-only" >> /boot/efi/EFI/Slackware/elilo.conf
-                  echo "  append = \"resume=$partition\"" >> /boot/efi/EFI/Slackware/elilo.conf
-                  echo "  label = vmlinuz-huge-$VERSION" >> /boot/efi/EFI/Slackware/elilo.conf
-                  echo "  description = \"Slackware 64 Huge $VERSION\"" >> /boot/efi/EFI/Slackware/elilo.conf
-                  echo "" >> /boot/efi/EFI/Slackware/elilo.conf
-              fi
-            done
-            cat << EOF > /boot/efi/EFI/Slackware/message.txt
-Slackware 15.0 Elilo Boot Manager
-  
-1. Press <Enter> to boot. 
-  
-2. Or press <Tab> to list available kernels.
-Type the kernel name and press <Enter> to boot.
-EOF
-          
-        fi
-
-        ;;    
-
-    "wheel_group")
-        echo "$VALOR" > "$PIS_DIR/$CHAVE"
-
-        if [ "$VALOR" = "YES" ]; then
-			sed -i "s/# \(%wheel ALL=(ALL:ALL) ALL\)/\1/" /etc/sudoers
+if [ -n "${settings[user]:-}" ]; then
+    if getent passwd "${settings[user]}" >/dev/null; then
+        pis_state_write user "${settings[user]}"
+        pis_state_write user_wheel "${settings[user_wheel]:-NO}"
+    else
+        password=$(dialog --stdout --insecure --backtitle "$PIS_BACKTITLE" --title "Profile User" \
+            --passwordbox "Set a new password for '${settings[user]}'. It is not stored:" 9 62) || password=""
+        if [ -n "$password" ]; then
+            apply_step user pis_add_system_user "${settings[user]}" "$password" "${settings[user_wheel]:-NO}"
+            unset password
         else
-			sed -i "s/\(^%wheel ALL=(ALL:ALL) ALL\)/# \1/" /etc/sudoers
+            failures="${failures}${failures:+, }user"
         fi
-        ;;    
+    fi
+fi
 
-    "user")
-        echo "$VALOR" > "$PIS_DIR/$CHAVE"
-
-        reg=($VALOR)
-        user=${reg[0]}
-        password=${reg[1]}
-        shell=/bin/bash
-        home="/home/$user"
-
-        useradd -m -d $home -s $shell -g users $user
-        echo -e "$password\n$password" | (passwd $user &> /dev/null)
-
-        [ "${reg[2]}" = "0"] && usermod -G wheel $user
-        ;;    
-
-    "gui_desktop")
-        echo "$VALOR" > "$PIS_DIR/$CHAVE"
-        ( cd /etc/X11/xinit ; rm -f xinitrc ; ln -sf $VALOR xinitrc )
-        ;;    
-
-    "gui_keyboard")
-        echo "$VALOR" > "$PIS_DIR/$CHAVE"
-
-        layout=$(echo "$VALOR" | cut -d : -f 1)
-        variant=$(echo "$VALOR" | cut -d : -f 2) 
-
-        cat << EOF > /etc/X11/xorg.conf.d/90-keyboard-layout-evdev.conf
-Section "InputClass"
-	Identifier "keyboard-all"
-	MatchIsKeyboard "on"
-	MatchDevicePath "/dev/input/event*"
-	Driver "evdev"
-	Option "XkbLayout" "$layout"
-	Option "XkbVariant" "$variant"
-	Option "XkbOptions" "terminate:ctrl_alt_bksp"
-EndSection
-EOF
-        ;;    
-
-    "slackpkg_mirror")
-        echo "$VALOR" > "$PIS_DIR/$CHAVE"
-
-        sed -i "s/\(^http\)/# http/" /etc/slackpkg/mirrors
-        sed -i "s/\(^ftp\)/# ftp/" /etc/slackpkg/mirrors
-
-        sed -i "$VALOR s/\(^# \)//" /etc/slackpkg/mirrors
-        ;;    
-
-    "slackpkg_slackpkgplus")
-        echo "$VALOR" > "$PIS_DIR/$CHAVE"
-
-        wget https://slakfinder.org/slackpkg+15/pkg/slackpkg+-1.8.0-noarch-7mt.txz -P /tmp
-        installpkg /tmp/slackpkg+-1.8.0-noarch-7mt.txz
-
-        reg=($VALOR)
-        sed -i "s/\(^REPOPLUS=( slackpkgplus \).*/\1$(echo ${reg[@]}) )/" /etc/slackpkg/slackpkgplus.conf
-        
-        for i in ${reg[@]}; 
-        do 
-            sed -i "0,/\($i'\]=https\)/ s/#\(MIRRORPLUS\['$i\)/\1/" /etc/slackpkg/slackpkgplus.conf
-        done
-        slackpkg update gpg
-        echo -e '\n' | slackpkg update 
-        ;;    
-
-    "sbopkg")
-        echo "$VALOR" > "$PIS_DIR/$CHAVE"
-        wget https://github.com/sbopkg/sbopkg/releases/download/0.38.2/sbopkg-0.38.2-noarch-1_wsr.tgz -P /tmp
-        installpkg /tmp/sbopkg-0.38.2-noarch-1_wsr.tgz
-        sbopkg -r
-        ;;    
-
-    "slapt_get_install")
-        echo "$VALOR" > "$PIS_DIR/$CHAVE"
-
-        wget https://software.jaos.org/slackpacks/slackware64-15.0/slapt-get/slapt-get-0.11.7-x86_64-1.txz -P /tmp
-        installpkg /tmp/slapt-get-0.11.7-x86_64-1.txz
-        if [ ! -f /lib64/libcrypto.so.1.1 ];
-        then
-            slackpkg install openssl
-        fi
-        [ ! -f /lib64/libcrypto.so.3 ] && ln -s /lib64/libcrypto.so.1.1 /lib64/libcrypto.so.3
-        [ ! -f /lib64/libcrypto.so.1 ] && ln -s /lib64/libcrypto.so.1.1 /lib64/libcrypto.so.1
-        sed -i "s/14\.2/15\.0/" /etc/slapt-get/slapt-getrc		
-
-        slapt-get --update	
-        ;;    
-
-    "slapt_get_extra_repo")
-        echo "$VALOR" > "$PIS_DIR/$CHAVE"
-
-        reg=($VALOR)
-        for i in ${reg[@]}; 
-        do 
-          if [ "$i" == "slackonly" ]
-          then
-            flag=$(echo $(grep -e "^SOURCE=https:\/\/packages\.slackonly" /etc/slapt-get/slapt-getrc &> /dev/null; echo $?))
-            [ "$flag" -ne 0 ] && echo "SOURCE=https://packages.slackonly.com/pub/packages/15.0-x86_64/" >> /etc/slapt-get/slapt-getrc 
-            continue
-          fi
-          if [ "$i" == "slackers" ]
-          then
-            flag=$(echo $(grep -e "^SOURCE=https:\/\/slack\.conraid" /etc/slapt-get/slapt-getrc &> /dev/null; echo $?))
-            [ "$flag" -ne 0 ] && echo "SOURCE=https://slack.conraid.net/repository/slackware64-current/" >> /etc/slapt-get/slapt-getrc 
-            continue
-          fi
-          if [ "$i" == "salixos" ]
-          then
-            flag=$(echo $(grep -e "^SOURCE=https:\/\/download\.salixos\.org\/x86_64\/15\.0\/$" /etc/slapt-get/slapt-getrc &> /dev/null; echo $?))
-            [ "$flag" -ne 0 ] && echo "SOURCE=https://download.salixos.org/x86_64/15.0/" >> /etc/slapt-get/slapt-getrc 
-            continue
-          fi
-          if [ "$i" == "salixextra" ]
-          then
-            flag=$(echo $(grep -e "^SOURCE=https:\/\/download\.salixos\.org\/x86_64\/extra-15\.0\/" /etc/slapt-get/slapt-getrc &> /dev/null; echo $?))
-            [ "$flag" -ne 0 ] && echo "SOURCE=https://download.salixos.org/x86_64/extra-15.0/" >> /etc/slapt-get/slapt-getrc 
-            continue
-          fi
-          if [ "$i" == "slackel" ]
-          then
-            flag=$(echo $(grep -e "^SOURCE=http:\/\/www\.slackel" /etc/slapt-get/slapt-getrc &> /dev/null; echo $?))
-            [ "$flag" -ne 0 ] && echo "SOURCE=http://www.slackel.gr/repo/x86_64/current/" >> /etc/slapt-get/slapt-getrc 
-            continue
-          fi
-          if [ "$i" == "slint" ]
-          then
-            flag=$(echo $(grep -e "^SOURCE=https:\/\/slackware\.uk\/slint" /etc/slapt-get/slapt-getrc &> /dev/null; echo $?))
-            [ "$flag" -ne 0 ] && echo "SOURCE=https://slackware.uk/slint/x86_64/slint-15.0/" >> /etc/slapt-get/slapt-getrc 
-            continue
-          fi
-        done
-        slapt-get --update
-        ;;    
-
-    "slapt_get_gslapt")
-        echo "$VALOR" > "$PIS_DIR/$CHAVE"
-
-        wget https://www.jaos.org/slackpacks/slackware64-14.2/gslapt/gslapt-0.5.9-x86_64-2.txz -P /tmp
-        installpkg /tmp/gslapt-0.5.9-x86_64-2.txz
-        ;;    
-
-    "slapt_get_slapt_src")
-        echo "$VALOR" > "$PIS_DIR/$CHAVE"
-
-        wget https://software.jaos.org/slackpacks/slackware64-15.0/slapt-src/slapt-src-0.3.7-x86_64-2.txz  -P /tmp
-        installpkg /tmp/slapt-src-0.3.7-x86_64-2.txz
-
-        if [ ! -f /lib64/libcrypto.so.1.1 ];
-        then
-            slackpkg install openssl
-        fi
-
-        [ ! -f /lib64/libcrypto.so.3 ] && ln -s /lib64/libcrypto.so.1.1 /lib64/libcrypto.so.3
-
-        [ ! -f /lib64/libcrypto.so.1 ] && ln -s /lib64/libcrypto.so.1.1 /lib64/libcrypto.so.1
-
-        sed -i "s/14\.2/15\.0/" /etc/slapt-get/slapt-srcrc	
-        slapt-src --update	
-        ;;    
-
-    "slapt_get_slapt_update_notifier")
-        echo "$VALOR" > "$PIS_DIR/$CHAVE"
-
-        wget https://software.jaos.org/slackpacks/slackware64-15.0/slapt-update-service/slapt-update-service-0.5.3-x86_64-2.txz -P /tmp
-        installpkg /tmp/slapt-update-service-0.5.3-x86_64-2.txz
-        slapt-get --update	
-        ;;    
-    esac
-
-done < "$FILE"
-
-dialog --backtitle "Slackware Post-Install Scripts v0.2" --msgbox "Configuration file '$FILE' 
-has been loaded with success!" 0 0 
-
-
-
+if [ -n "$failures" ]; then
+    pis_error "The profile was applied partially. Failed items:\n$failures\n\nUse Status and Restore to inspect or revert changes."
+    exit 1
+fi
+pis_info "Apply Profile" "The profile was applied and verified successfully."
