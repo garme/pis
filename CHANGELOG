@@ -1,5 +1,6 @@
 PIS 0.3.0 - 2026-11-07
 
+* Installed the shared shell library in /usr/lib{64}/pis instead of /sbin.
 * Added automatic backup and restoration of changed configuration files.
 * Added a configuration/status screen and a system compatibility check.
 * Added a shared implementation used by menus and profile application.

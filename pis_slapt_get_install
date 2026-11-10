@@ -1,5 +1,9 @@
 #!/bin/bash
-PIS_SBIN="${PIS_SBIN:-/sbin}"; . "$PIS_SBIN/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
+PIS_SBIN="${PIS_SBIN:-/sbin}"
+if [ -z "${PIS_LIBDIR:-}" ]; then
+    case "$(uname -m)" in x86_64) PIS_LIBDIR=/usr/lib64/pis ;; *) PIS_LIBDIR=/usr/lib/pis ;; esac
+fi
+. "$PIS_LIBDIR/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
 pis_init || exit 1
 dialog --backtitle "$PIS_BACKTITLE" --title "Slapt-get" --yesno "Install slapt-get 0.11.11 for Slackware 15.0?" 7 60 || exit 0
 pis_install_slapt_get || { pis_error "slapt-get could not be installed. No OpenSSL compatibility links were created."; exit 1; }

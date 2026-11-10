@@ -1,5 +1,9 @@
 #!/bin/bash
-PIS_SBIN="${PIS_SBIN:-/sbin}"; . "$PIS_SBIN/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
+PIS_SBIN="${PIS_SBIN:-/sbin}"
+if [ -z "${PIS_LIBDIR:-}" ]; then
+    case "$(uname -m)" in x86_64) PIS_LIBDIR=/usr/lib64/pis ;; *) PIS_LIBDIR=/usr/lib/pis ;; esac
+fi
+. "$PIS_LIBDIR/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
 pis_init || exit 1
 command -v sbopkg >/dev/null 2>&1 || { pis_error "Install sbopkg first. slapt-update-service has no prebuilt package from its upstream project."; exit 1; }
 dialog --backtitle "$PIS_BACKTITLE" --title "Slapt Update Service" \

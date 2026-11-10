@@ -1,5 +1,9 @@
 #!/bin/bash
-PIS_SBIN="${PIS_SBIN:-/sbin}"; . "$PIS_SBIN/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
+PIS_SBIN="${PIS_SBIN:-/sbin}"
+if [ -z "${PIS_LIBDIR:-}" ]; then
+    case "$(uname -m)" in x86_64) PIS_LIBDIR=/usr/lib64/pis ;; *) PIS_LIBDIR=/usr/lib/pis ;; esac
+fi
+. "$PIS_LIBDIR/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
 pis_init || exit 1
 while true; do
     choice=$(dialog --stdout --backtitle "$PIS_BACKTITLE" --title "Graphical Environment" \
