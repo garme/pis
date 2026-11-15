@@ -5,10 +5,11 @@ if [ -z "${PIS_LIBDIR:-}" ]; then
 fi
 . "$PIS_LIBDIR/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
 pis_init || exit 1
+release="$(pis_release 2>/dev/null || printf unknown)"
 while true; do
     choice=$(dialog --stdout --backtitle "$PIS_BACKTITLE" --title "Slackpkg" \
         --menu "Mirror: $(pis_state_read slackpkg_mirror)" 0 0 0 \
-        mirror "Select a Slackware 15.0 mirror" \
+        mirror "Select a Slackware $release mirror" \
         slackpkgplus "Install and configure slackpkg+") || exit 0
     case "$choice" in
         mirror) "$PIS_SBIN/pis_slackpkg_set_mirror" ;;

@@ -5,13 +5,13 @@ if [ -z "${PIS_LIBDIR:-}" ]; then
 fi
 . "$PIS_LIBDIR/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
 pis_init || exit 1
+release="$(pis_release)" || { pis_error "Unable to detect the Slackware release."; exit 1; }
+arch="$(pis_arch)" || { pis_error "Unsupported architecture."; exit 1; }
+items=(alienbob "Alien Bob packages" off restricted "Alien Bob restricted packages" off)
+[ "$arch" != x86_64 ] || items=(multilib "32-bit compatibility libraries" off "${items[@]}")
 selected=$(dialog --stdout --separate-output --backtitle "$PIS_BACKTITLE" --title "Slapt-get Repositories" \
-    --checklist "These are third-party Slackware 15.0-compatible repositories. Review package origins before installation:" 0 0 0 \
-    slackonly "SlackOnly 15.0 packages" off \
-    salix "Salix 15.0 packages" off \
-    salixextra "Salix extra 15.0 packages" off \
-    slint "Slint 15.0 packages" off) || exit 0
+    --checklist "Third-party repositories for Slackware $release/$arch. Review package origins before installation:" 0 0 0 "${items[@]}") || exit 0
 [ -n "$selected" ] || exit 0
 repos="$(printf '%s\n' "$selected" | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
 pis_apply_slapt_repositories "$repos" || { pis_error "Repositories could not be configured or updated."; exit 1; }
-pis_info "Slapt-get Repositories" "The selected Slackware 15.0 repositories were added. Repositories for 'current' were intentionally rejected."
+pis_info "Slapt-get Repositories" "The selected Slackware $release/$arch repositories were added."

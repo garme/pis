@@ -5,14 +5,19 @@ if [ -z "${PIS_LIBDIR:-}" ]; then
 fi
 . "$PIS_LIBDIR/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
 pis_init || exit 1
+release="$(pis_release 2>/dev/null || printf unknown)"
 while true; do
+    items=()
+    if [ "$release" = 15.0 ]; then
+        items+=(slapt-get "Install slapt-get 0.11.11" gslapt "Install GSlapt 0.5.11" slapt-src "Install slapt-src 0.3.9" notifier "Build slapt-update-service through sbopkg")
+    fi
+    command -v slapt-get >/dev/null 2>&1 && items+=(repositories "Add compatible third-party repositories")
+    if [ "${#items[@]}" -eq 0 ]; then
+        pis_info "Slapt-get Tools" "No managed slapt-get action is available. On Slackware current, install a compatible slapt-get build first; PIS can then configure compatible repositories."
+        exit 0
+    fi
     choice=$(dialog --stdout --backtitle "$PIS_BACKTITLE" --title "Slapt-get Tools" \
-        --menu "All package installers target Slackware 15.0 and the current architecture." 0 0 0 \
-        slapt-get "Install slapt-get 0.11.11" \
-        repositories "Add compatible third-party repositories" \
-        gslapt "Install GSlapt 0.5.11" \
-        slapt-src "Install slapt-src 0.3.9" \
-        notifier "Build slapt-update-service through sbopkg") || exit 0
+        --menu "Detected Slackware branch: $release. Prebuilt slapt tools are available only for 15.0." 0 0 0 "${items[@]}") || exit 0
     case "$choice" in
         slapt-get) "$PIS_SBIN/pis_slapt_get_install" ;;
         repositories) "$PIS_SBIN/pis_slapt_get_install_extra_repositories" ;;

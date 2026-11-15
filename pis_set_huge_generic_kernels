@@ -5,26 +5,90 @@ if [ -z "${PIS_LIBDIR:-}" ]; then
 fi
 . "$PIS_LIBDIR/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
 pis_init || exit 1
-
-elilo_dir="$(pis_path /boot/efi/EFI/Slackware)"
-[ -f "$elilo_dir/elilo.conf" ] || { pis_error "This module configures ELILO, but $elilo_dir/elilo.conf was not found."; exit 1; }
+bootloader_items=()
+while IFS= read -r candidate; do
+    case "$candidate" in
+        elilo) description="ELILO configuration on the EFI System Partition" ;;
+        lilo)  description="LILO configuration in /etc/lilo.conf" ;;
+        grub)  description="GRUB configuration in /boot/grub/grub.cfg" ;;
+        *) continue ;;
+    esac
+    bootloader_items+=("$candidate" "$description")
+done < <(pis_available_bootloaders)
+[ "${#bootloader_items[@]}" -gt 0 ] || { pis_error "No configured ELILO, LILO or GRUB bootloader was found."; exit 1; }
+if [ "${#bootloader_items[@]}" -eq 2 ]; then
+    bootloader="${bootloader_items[0]}"
+else
+    bootloader=$(dialog --stdout --backtitle "$PIS_BACKTITLE" --title "Select Bootloader" \
+        --menu "More than one configured bootloader was found. Select the configuration that PIS should update." 14 76 6 \
+        "${bootloader_items[@]}") || exit 0
+fi
+export PIS_BOOTLOADER="$bootloader"
+current_kernels="$(pis_state_read kernels)"
+if [ "$bootloader" = lilo ]; then
+    managed_kernels="$(pis_lilo_managed_kernels "$(pis_path /etc/lilo.conf)")"
+    [ -z "$managed_kernels" ] || current_kernels="$managed_kernels"
+fi
+current_kernels="$(printf '%s\n' "$current_kernels" | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+running_version="$(uname -r)"
+case "$running_version" in *-smp) running_smp=1 ;; *) running_smp=0 ;; esac
 items=()
 for kernel_path in "$(pis_path /boot)"/vmlinuz-generic-* "$(pis_path /boot)"/vmlinuz-huge-*; do
     [ -f "$kernel_path" ] && [ ! -L "$kernel_path" ] || continue
     kernel="$(basename "$kernel_path")"
-    type="${kernel#vmlinuz-}"; type="${type%%-*}"
-    items+=("$kernel" "$type kernel" off)
+    metadata="$(pis_kernel_metadata "$kernel")" || continue
+    IFS=$'\t' read -r type version <<< "$metadata"
+    case "$kernel" in
+        vmlinuz-*-smp-*) flavor="$type SMP kernel"; kernel_smp=1 ;;
+        *)               flavor="$type kernel"; kernel_smp=0 ;;
+    esac
+    if { [ "$running_smp" -eq 1 ] && [ "$kernel_smp" -eq 1 ]; } || \
+       { [ "$running_smp" -eq 0 ] && [ "$kernel_smp" -eq 0 ]; }; then
+        flavor="$flavor (recommended flavor)"
+    fi
+    case " $current_kernels " in
+        *" $kernel "*) state=on ;;
+        *)              state=off ;;
+    esac
+    items+=("$kernel" "$flavor" "$state")
 done
 [ "${#items[@]}" -gt 0 ] || { pis_error "No Huge or Generic kernels were found in /boot."; exit 1; }
-selected=$(dialog --stdout --separate-output --backtitle "$PIS_BACKTITLE" --title "ELILO Kernels" \
-    --checklist "Select kernels to publish. Current: $(pis_state_read kernels)" 0 0 14 "${items[@]}") || exit 0
+selected=$(dialog --stdout --separate-output --backtitle "$PIS_BACKTITLE" --title "${bootloader^^} Kernels" \
+    --checklist "Select the complete set of kernels to publish. Existing PIS entries are preselected; unchecking one removes it. Running kernel: $running_version" 0 0 14 "${items[@]}") || exit 0
 [ -n "$selected" ] || exit 0
 selection_line="$(printf '%s\n' "$selected" | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
-dialog --backtitle "$PIS_BACKTITLE" --title "Confirm ELILO Configuration" \
-    --yesno "Generate initrds as needed and publish these kernels?\n\n$selection_line\n\nThe current ELILO configuration and replaced files will be backed up automatically." 13 72 || exit 0
-if pis_apply_kernels "$selection_line"; then
-    pis_info "ELILO Kernels" "The selected kernels were published successfully. Reboot to test the new configuration."
+memory_line=""
+default_line=""
+if [ "$bootloader" = grub ]; then
+    default_items=()
+    first_default=1
+    while IFS= read -r kernel; do
+        [ -n "$kernel" ] || continue
+        if [ "$first_default" -eq 1 ]; then state=on; first_default=0; else state=off; fi
+        default_items+=("$kernel" "Boot this kernel by default" "$state")
+    done <<< "$selected"
+    PIS_GRUB_DEFAULT_KERNEL=$(dialog --stdout --backtitle "$PIS_BACKTITLE" --title "Default GRUB Kernel" \
+        --radiolist "Select the PIS kernel that GRUB should boot by default." 0 0 10 \
+        "${default_items[@]}") || exit 0
+    [ -n "$PIS_GRUB_DEFAULT_KERNEL" ] || exit 0
+    export PIS_GRUB_DEFAULT_KERNEL
+    default_line="\nDefault GRUB kernel: $PIS_GRUB_DEFAULT_KERNEL\n"
+fi
+if [ "$bootloader" = lilo ] && [ "$(pis_arch)" = x86 ]; then
+    default_mode=AUTO
+    grep -Eq '^[[:space:]]*small-memory[[:space:]]*$|^# BEGIN PIS LILO MEMORY$' "$(pis_path /etc/lilo.conf)" && default_mode=LEGACY
+    PIS_LILO_MEMORY_MODE=$(dialog --stdout --backtitle "$PIS_BACKTITLE" --title "LILO Initrd Memory" \
+        --default-item "$default_mode" --menu "Choose how LILO should load Generic-kernel initrds. Legacy mode creates compact initrds and requires them to fit below 15 MiB." 12 76 2 \
+        AUTO "Automatic LILO memory placement (modern BIOS)" \
+        LEGACY "Compact initrd below 15 MiB (legacy BIOS)") || exit 0
+    export PIS_LILO_MEMORY_MODE
+    memory_line="\nLILO memory mode: $PIS_LILO_MEMORY_MODE\n"
+fi
+dialog --backtitle "$PIS_BACKTITLE" --title "Confirm ${bootloader^^} Configuration" \
+    --yesno "Generate initrds as needed and publish these kernels with ${bootloader^^}?\n\n$selection_line\n${memory_line}${default_line}\nThe current configuration and replaced files will be backed up automatically." 16 76 || exit 0
+if pis_apply_kernels "$selection_line" "$bootloader"; then
+    pis_info "${bootloader^^} Kernels" "The selected kernels were published successfully. Reboot to test the new configuration."
 else
-    pis_error "The ELILO configuration was not completed."
+    pis_error "The ${bootloader^^} configuration was not completed."
     exit 1
 fi

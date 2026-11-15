@@ -1,0 +1,56 @@
+#!/bin/bash
+
+PIS_SBIN="${PIS_SBIN:-/sbin}"
+if [ -z "${PIS_LIBDIR:-}" ]; then
+    case "$(uname -m)" in x86_64) PIS_LIBDIR=/usr/lib64/pis ;; *) PIS_LIBDIR=/usr/lib/pis ;; esac
+fi
+. "$PIS_LIBDIR/pis_lib" 2>/dev/null || . "$(dirname "$0")/pis_lib" || exit 1
+pis_init || exit 1
+
+while true; do
+    summary="$(pis_ntp_report)"
+    choice=$(dialog --stdout --backtitle "$PIS_BACKTITLE" --title "Date and Time" \
+        --cancel-label "Back" --menu "$summary\n\nSelect a configuration method:" 20 76 6 \
+        timeconfig "Set timezone and hardware clock with Slackware timeconfig" \
+        ntp        "Configure automatic time synchronization with NTP" \
+        status     "Refresh and display date/time status" \
+        back       "Return to the main menu") || exit 0
+    case "$choice" in
+        timeconfig)
+            dialog --backtitle "$PIS_BACKTITLE" --title "Slackware timeconfig" \
+                --yesno "Run Slackware's native timeconfig tool?\n\nPIS will back up the timezone and hardware-clock files first." 11 66 || continue
+            if pis_run_timeconfig; then
+                pis_info "Date and Time" "Timezone and hardware-clock settings were recorded successfully."
+            else
+                pis_error "timeconfig did not complete successfully."
+            fi
+            ;;
+        ntp)
+            ntp_choice=$(dialog --stdout --backtitle "$PIS_BACKTITLE" --title "NTP Synchronization" \
+                --cancel-label "Back" --menu "Choose an NTP action:" 14 72 5 \
+                enable  "Configure the pool, enable rc.ntpd and start NTP" \
+                disable "Stop NTP and disable rc.ntpd at boot" \
+                status  "Show timezone and NTP status" \
+                back    "Return to Date and Time") || continue
+            case "$ntp_choice" in
+                enable)
+                    pool=$(dialog --stdout --backtitle "$PIS_BACKTITLE" --title "NTP Pool" \
+                        --inputbox "NTP pool hostname:\n\nThe global pool normally returns nearby servers." 11 68 "$(pis_ntp_pool)") || continue
+                    [ -n "$pool" ] || continue
+                    dialog --backtitle "$PIS_BACKTITLE" --title "Enable NTP" \
+                        --yesno "Configure '$pool', enable rc.ntpd at boot and start the service now?" 9 70 || continue
+                    if pis_apply_ntp ENABLE "$pool"; then pis_info "NTP" "NTP synchronization was enabled successfully."; fi
+                    ;;
+                disable)
+                    dialog --backtitle "$PIS_BACKTITLE" --title "Disable NTP" \
+                        --yesno "Stop ntpd and disable automatic startup?\n\nThe NTP configuration file will be preserved." 10 66 || continue
+                    if pis_apply_ntp DISABLE; then pis_info "NTP" "NTP synchronization was disabled successfully."; fi
+                    ;;
+                status) pis_info "Date and Time Status" "$(pis_ntp_report)" ;;
+                back) ;;
+            esac
+            ;;
+        status) pis_info "Date and Time Status" "$(pis_ntp_report)" ;;
+        back) exit 0 ;;
+    esac
+done

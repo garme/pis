@@ -1,14 +1,16 @@
-.TH PIS 1 "7 November 2026" "pis 0.3.0" "User Commands"
+.TH PIS 1 "15 November 2026" "pis 0.5.0" "User Commands"
 .SH NAME
-pis \- Slackware 15.0 post-installation configuration assistant
+pis \- Slackware post-installation configuration assistant
 .SH SYNOPSIS
 .B pis
 .RI [ option ]
 .SH DESCRIPTION
 .B PIS
-is a dialog-based collection of Bash scripts for selected Slackware 15.0
-post-installation tasks. It configures locale, keyboard, login, users, wheel
-administration, X sessions, ELILO kernels and selected package managers.
+is a dialog-based collection of Bash scripts for selected Slackware 15.0 and current
+post-installation tasks. It configures locale, keyboard, date/time, optional
+NTP synchronization, login, users, wheel administration, X sessions,
+ELILO/LILO/GRUB kernels and selected package managers
+on x86 and x86_64.
 .PP
 Before replacing a configuration file, PIS creates a private backup under
 .IR /var/log/PIS/backups .
@@ -34,7 +36,7 @@ Validate, preview and apply a PIS profile.
 .B --restore
 Select and restore an automatic PIS backup.
 .SH PROFILES
-PIS 0.3 profiles use
+PIS 0.3 and 0.4 profiles use
 .B PIS_PROFILE_VERSION=1
 and store portable values such as the full slackpkg mirror URL. Unknown
 settings, incompatible repositories and invalid values are rejected before
@@ -50,11 +52,44 @@ Private state recorded by PIS.
 .I /var/log/PIS/backups
 Automatic backups and their index.
 .TP
+.I /etc/localtime
+Timezone data selected by Slackware timeconfig.
+.TP
+.I /etc/hardwareclock
+Hardware-clock mode selected by Slackware timeconfig.
+.TP
+.I /etc/ntp.conf
+NTP configuration. PIS manages only its delimited NTP block.
+.TP
+.I /etc/rc.d/rc.ntpd
+Native Slackware NTP startup script; its executable mode enables startup.
+.TP
 .I /boot/efi/EFI/Slackware/elilo.conf
 ELILO configuration, when the kernel module is used.
+.TP
+.I /etc/lilo.conf
+LILO configuration, when detected.
+.TP
+.I /boot/grub/grub.cfg
+GRUB configuration, when detected.
+.TP
+.I /etc/grub.d/09_pis
+Explicit PIS-managed GRUB entries. The selected default kernel is emitted first;
+automatic GRUB entries remain available as fallbacks.
+.PP
+For 32-bit LILO installations, the kernel menu offers a legacy-BIOS mode that
+creates compact initrds and validates low-memory placement before installing
+the boot map.
 .SH NOTES
+When multiple bootloader configurations are present, PIS requires an explicit
+selection. The GRUB package alone is not considered a configured bootloader;
+/boot/grub/grub.cfg must exist.
+.PP
 PIS uses existing Slackware configuration files and does not replace the
 distribution's network and service configuration utilities.
+.PP
+The Date and Time menu invokes Slackware timeconfig and can configure the
+global NTP pool, enable or disable rc.ntpd, and display the recorded state.
 .SH AUTHOR
 Guilherme Esmeraldo.
 .SH LICENSE

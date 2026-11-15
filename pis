@@ -48,14 +48,17 @@ case "${1:-}" in
 esac
 
 pis_init || exit 1
+system_label="$(pis_system_label)"
+bootloader="$(pis_detect_bootloader 2>/dev/null || printf none)"
 
 while true; do
     choice=$(dialog --stdout --backtitle "$PIS_BACKTITLE" --title "PIS Main Menu" \
-        --cancel-label "Exit" --menu "Configure this Slackware 15.0 system:" 0 0 0 \
+        --cancel-label "Exit" --menu "Configure $system_label:" 0 0 0 \
         "Status"   "View current configuration and system check" \
         "Locale"   "Set system locale and console keyboard" \
+        "DateTime" "Configure timezone, hardware clock and NTP" \
         "Login"    "Set CLI or GUI login mode" \
-        "Kernels"  "Configure Huge/Generic kernels in ELILO" \
+        "Kernels"  "Configure Huge/Generic kernels in $bootloader" \
         "User"     "Configure users and wheel administration" \
         "GUI"      "Configure the graphical environment" \
         "Packages" "Configure package managers" \
@@ -67,6 +70,7 @@ while true; do
     case "$choice" in
         Status) "$PIS_SBIN/pis_status" ;;
         Locale) "$PIS_SBIN/pis_locale" ;;
+        DateTime) "$PIS_SBIN/pis_datetime" ;;
         Login) "$PIS_SBIN/pis_set_login_mode" ;;
         Kernels) "$PIS_SBIN/pis_set_huge_generic_kernels" ;;
         User) "$PIS_SBIN/pis_user" ;;
@@ -90,7 +94,7 @@ while true; do
             ;;
         Restore) "$PIS_SBIN/pis_backup_restore" ;;
         About)
-            about="Slackware Post-Installation Scripts (PIS) automate selected Slackware 15.0 post-installation tasks.\n\nVersion: $PIS_VERSION\nAuthor: Guilherme Esmeraldo\nLicense: GPLv3+\n\n'Let the Slackers be a little bit lazy. ;)'"
+            about="Slackware Post-Installation Scripts (PIS) automate selected Slackware 15.0 and current post-installation tasks on x86 and x86_64.\n\nDetected: $system_label\nVersion: $PIS_VERSION\nAuthor: Guilherme Esmeraldo\nLicense: GPLv3+\n\n'Let the Slackers be a little bit lazy. ;)'"
             pis_info "$PIS_BACKTITLE" "$about"
             ;;
         Exit) break ;;

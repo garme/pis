@@ -26,7 +26,7 @@ while IFS= read -r line || [ -n "$line" ]; do
 done < "$profile"
 
 [ "${settings[PIS_PROFILE_VERSION]:-}" = "1" ] || {
-    pis_error "This profile is not in the secure PIS 0.3 format. Re-export it with PIS 0.3; legacy profiles may contain plaintext passwords."
+    pis_error "This profile is not in the secure PIS profile format. Re-export it with PIS 0.4; legacy profiles may contain plaintext passwords."
     exit 1
 }
 
@@ -48,12 +48,20 @@ fi
 [ -z "${settings[user]:-}" ] || printf '%s' "${settings[user]}" | grep -Eq '^[a-z_][a-z0-9_-]{0,31}$' || { pis_error "Invalid username in profile."; exit 1; }
 [ -z "${settings[gui_desktop]:-}" ] || printf '%s' "${settings[gui_desktop]}" | grep -Eq '^xinitrc\.[A-Za-z0-9._+-]+$' || { pis_error "Invalid X session in profile."; exit 1; }
 [ -z "${settings[gui_keyboard]:-}" ] || printf '%s' "${settings[gui_keyboard]}" | grep -Eq '^[A-Za-z0-9_-]+:[A-Za-z0-9_+-]*$' || { pis_error "Invalid X keyboard setting."; exit 1; }
-[ -z "${settings[slackpkg_mirror]:-}" ] || printf '%s' "${settings[slackpkg_mirror]}" | grep -Eq '^https?://[^[:space:]]*slackware(64)?-15\.0/?$' || { pis_error "The profile mirror is not for Slackware 15.0."; exit 1; }
+[ -z "${settings[slackpkg_mirror]:-}" ] || pis_mirror_matches_system "${settings[slackpkg_mirror]}" || { pis_error "The profile mirror does not match $(pis_slackpkg_tree 2>/dev/null || printf 'this system')."; exit 1; }
 valid_list "${settings[slackpkg_slackpkgplus]:-}" "multilib alienbob restricted" || { pis_error "Invalid slackpkg+ repository."; exit 1; }
-valid_list "${settings[slapt_get_extra_repo]:-}" "slackonly salix salixextra slint" || { pis_error "Invalid or incompatible slapt-get repository."; exit 1; }
+valid_list "${settings[slapt_get_extra_repo]:-}" "multilib alienbob restricted" || { pis_error "Invalid or incompatible slapt-get repository."; exit 1; }
+[ "$(pis_arch 2>/dev/null || true)" = x86_64 ] || {
+    case " ${settings[slackpkg_slackpkgplus]:-} ${settings[slapt_get_extra_repo]:-} " in *' multilib '*) pis_error "Multilib requires x86_64."; exit 1 ;; esac
+}
 for key in sbopkg slapt_get_install slapt_get_gslapt slapt_get_slapt_src slapt_get_slapt_update_notifier; do
     [ -z "${settings[$key]:-}" ] || valid_yes_no "${settings[$key]}" || { pis_error "Invalid value for $key."; exit 1; }
 done
+if [ "$(pis_release 2>/dev/null || true)" = current ]; then
+    for key in slapt_get_install slapt_get_gslapt slapt_get_slapt_src slapt_get_slapt_update_notifier; do
+        [ "${settings[$key]:-NO}" != YES ] || { pis_error "$key uses a Slackware 15.0 package and cannot be applied automatically on current."; exit 1; }
+    done
+fi
 for kernel in ${settings[kernels]:-}; do
     printf '%s' "$kernel" | grep -Eq '^vmlinuz-(generic|huge)-[A-Za-z0-9._+-]+$' || { pis_error "Invalid kernel name: $kernel"; exit 1; }
 done

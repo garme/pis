@@ -7,11 +7,12 @@ fi
 pis_init || exit 1
 mirrors="$(pis_path /etc/slackpkg/mirrors)"
 [ -r "$mirrors" ] || { pis_error "$mirrors was not found."; exit 1; }
+tree="$(pis_slackpkg_tree)" || { pis_error "Unable to determine the Slackware mirror tree."; exit 1; }
 items=()
-while IFS= read -r url; do items+=("$url" "Slackware 15.0"); done < <(
-    sed -E 's/^[[:space:]]*#[[:space:]]*//' "$mirrors" | grep -E '^https?://.*slackware(64)?-15\.0/?$' | sort -u
+while IFS= read -r url; do items+=("$url" "$tree"); done < <(
+    sed -E 's/^[[:space:]]*#[[:space:]]*//' "$mirrors" | grep -E "^https?://.*/${tree}/?$" | sort -u
 )
-[ "${#items[@]}" -gt 0 ] || { pis_error "No Slackware 15.0 HTTP(S) mirrors were found."; exit 1; }
+[ "${#items[@]}" -gt 0 ] || { pis_error "No HTTP(S) mirrors for $tree were found."; exit 1; }
 choice=$(dialog --stdout --backtitle "$PIS_BACKTITLE" --title "Slackpkg Mirror" \
     --menu "Select one mirror. Current: $(pis_state_read slackpkg_mirror)" 0 0 14 "${items[@]}") || exit 0
 if pis_apply_slackpkg_mirror "$choice"; then

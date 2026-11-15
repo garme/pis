@@ -1,0 +1,7 @@
+#!/bin/bash
+mkdir -p "$PIS_ROOT/usr/share/zoneinfo/America"
+printf 'test timezone\n' > "$PIS_ROOT/usr/share/zoneinfo/America/Sao_Paulo"
+rm -f "$PIS_ROOT/etc/localtime" "$PIS_ROOT/etc/localtime-copied-from"
+cp "$PIS_ROOT/usr/share/zoneinfo/America/Sao_Paulo" "$PIS_ROOT/etc/localtime"
+ln -s /usr/share/zoneinfo/America/Sao_Paulo "$PIS_ROOT/etc/localtime-copied-from"
+printf 'UTC\n' > "$PIS_ROOT/etc/hardwareclock"

@@ -1,0 +1,12 @@
+#!/bin/bash
+output=""
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -o) output="$2"; shift 2 ;;
+        *) shift ;;
+    esac
+done
+[ -n "$output" ] || exit 1
+printf '# test grub.cfg\n' > "$output"
+[ ! -x "$PIS_ROOT/etc/grub.d/09_pis" ] || "$PIS_ROOT/etc/grub.d/09_pis" >> "$output"
+printf "menuentry 'Automatic fallback' {\n  linux /boot/vmlinuz\n}\n" >> "$output"

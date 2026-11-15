@@ -1,5 +1,5 @@
 ------------------------------------------------------------------------
-             Slackware Post-Install Scripts (PIS) 0.3.0
+             Slackware Post-Install Scripts (PIS) 0.5.0
 ------------------------------------------------------------------------
 
                'Let the Slackers be a little bit lazy. ;)'
@@ -7,8 +7,8 @@
 1. Introduction
 ===============
 
-PIS is a set of Bash scripts that assists with selected Slackware 15.0
-post-installation tasks. Its dialog menus resemble the Slackware installer
+PIS is a set of Bash scripts that assists with selected Slackware 15.0 and
+Slackware-current post-installation tasks on x86 and x86_64. Its dialog menus resemble the Slackware installer
 and preserve the distribution's transparent, text-file-oriented approach.
 
 PIS does not duplicate Slackware's network or service configuration tools.
@@ -16,16 +16,18 @@ PIS does not duplicate Slackware's network or service configuration tools.
 2. Features
 ===========
 
-PIS 0.3.0 can:
+PIS 0.5.0 can:
 
  * display the recorded PIS configuration and run a system check;
  * set the locale and console keyboard map;
+ * run Slackware timeconfig for timezone and hardware-clock configuration;
+ * configure, enable, disable and inspect NTP synchronization;
  * select CLI or GUI login;
  * add users without saving their passwords;
  * activate or deactivate wheel administration after visudo validation;
  * select a system-wide startx session and X keyboard layout;
- * publish installed Huge and Generic kernels to an existing ELILO setup;
- * select a Slackware 15.0 slackpkg mirror by its URL;
+ * publish installed Huge and Generic kernels through ELILO, LILO or GRUB;
+ * select a matching Slackware 15.0 or current slackpkg mirror by URL;
  * install and configure selected package-management tools;
  * make automatic backups before changing configuration files;
  * restore earlier files from the PIS menu; and
@@ -35,15 +37,23 @@ PIS 0.3.0 can:
 ======================
 
 PIS edits standard Slackware configuration files. Before replacing a file,
-version 0.3.0 saves a copy under /var/log/PIS/backups and records it in a
+version 0.5.0 saves a copy under /var/log/PIS/backups and records it in a
 private index. Use the Restore option or run "pis --restore" to recover a
 selected copy. The file being replaced during a restore is also backed up.
+If PIS created a file that did not previously exist, that absent state is
+recorded too; restoring it removes the PIS-created file safely.
 
 Depending on the selected operations, PIS can change:
 
  /etc/profile.d/lang.sh
  /etc/profile.d/lang.csh
  /etc/rc.d/rc.keymap
+ /etc/localtime
+ /etc/localtime-copied-from
+ /etc/hardwareclock
+ /etc/adjtime
+ /etc/ntp.conf
+ /etc/rc.d/rc.ntpd
  /etc/inittab
  /etc/sudoers
  /etc/X11/xinit/xinitrc
@@ -52,11 +62,29 @@ Depending on the selected operations, PIS can change:
  /etc/slackpkg/slackpkgplus.conf
  /etc/slapt-get/slapt-getrc
  /boot/efi/EFI/Slackware/elilo.conf
+ /etc/lilo.conf
+ /etc/grub.d/09_pis
+ /boot/grub/grub.cfg
 
-The kernel module only operates when an existing ELILO configuration is
-detected. It generates and checks all selected entries before publishing the
-new configuration. A resume parameter is included only when active swap is
-detected.
+The kernel module operates when ELILO, LILO or GRUB is detected. It generates
+initrds as needed and checks a generated configuration before publishing it.
+A selection menu is displayed when more than one configured bootloader is
+detected. Installing a GRUB package alone is not considered a configured GRUB;
+/boot/grub/grub.cfg must already exist.
+For GRUB, PIS writes explicit top-level entries in /etc/grub.d/09_pis for the
+selected kernels, asks which selected entry is the default, and regenerates
+grub.cfg. Entries produced automatically by the distribution remain as
+fallbacks and may still include every kernel image and symbolic link in /boot.
+A resume parameter is included only when active swap is detected.
+On 32-bit LILO systems, the optional legacy-BIOS mode creates a separate
+compact initrd, enables small-memory and refuses to install the boot map unless
+LILO confirms that the initrd fits below 15 MiB. The normal full initrd is kept.
+
+The Date and Time menu calls Slackware's native timeconfig instead of
+reimplementing timezone selection. Its NTP option maintains a delimited PIS
+block in /etc/ntp.conf, defaults to pool.ntp.org, enables or disables rc.ntpd
+through its executable bit, and starts or stops the native service. The
+previous files and service permissions are backed up before modification.
 
 4. Profiles
 ===========
@@ -71,19 +99,20 @@ Review, validate and apply a profile:
 
 Profiles identify their format with PIS_PROFILE_VERSION=1. Mirrors are saved
 as URLs instead of line numbers. Only known keys and values are accepted.
-Repositories for Slackware-current are rejected by the Slackware 15.0
-profile. User passwords are never recorded or exported; a new password is
+Mirror and repository values must match the detected release and architecture.
+User passwords are never recorded or exported; a new password is
 requested when a profile needs to create an absent user.
 
 Profiles created by PIS 0.2 are deliberately rejected because their user
-entry may expose a plaintext password. Create a fresh profile with PIS 0.3.0.
+entry may expose a plaintext password. Create a fresh profile with PIS 0.5.0.
 
 5. Package-management integrations
 ===================================
 
-PIS uses packages intended for Slackware 15.0 and checks the architecture
-before using architecture-specific definitions. It no longer creates links
-between incompatible OpenSSL library versions.
+PIS detects Slackware 15.0 or current and x86 or x86_64 before selecting
+mirrors and repository definitions. Multilib is offered only on x86_64.
+Prebuilt slapt-get, GSlapt and slapt-src packages remain limited to 15.0;
+on current, PIS can configure an already installed compatible slapt-get.
 
 Third-party repositories remain optional. Read their documentation and
 inspect package origins before installing or upgrading software.
@@ -93,7 +122,7 @@ inspect package origins before installing or upgrading software.
 
 Build and install PIS with its SlackBuild, then run it as root:
 
- # installpkg pis-0.3.0-noarch-1_SBo.tgz
+ # installpkg pis-0.5.0-noarch-1_SBo.tgz
  # pis
 
 Options:

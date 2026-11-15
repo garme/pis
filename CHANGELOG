@@ -1,3 +1,66 @@
+PIS 0.5.0 - 2026-11-15
+
+* Added a Date and Time menu immediately after Locale.
+* Integrated Slackware's native timeconfig with automatic backups and status.
+* Added optional NTP pool configuration with a delimited /etc/ntp.conf block.
+* Added safe enable, disable, start, stop and status handling for rc.ntpd.
+* Recorded timezone, hardware-clock mode, NTP state and pool in PIS status.
+* Added regression tests for timeconfig and NTP configuration.
+
+PIS 0.4.8 - 2026-11-15
+
+* Added one explicit top-level GRUB entry for every kernel selected in PIS.
+* Added selection of the default PIS GRUB kernel.
+* Prevented GRUB's automatic scan of /boot from overriding the PIS selection.
+* Kept automatically discovered GRUB entries as recovery alternatives.
+* Validated the complete generated grub.cfg with grub-script-check.
+* Recorded whether each changed file previously existed, allowing Restore to
+  remove files that PIS originally created.
+* Recorded the selected bootloader and GRUB default kernel in PIS status.
+
+PIS 0.4.7 - 2026-11-15
+
+* Added explicit bootloader selection when multiple configurations are present.
+* Stopped treating an installed GRUB package as a configured GRUB bootloader.
+* Reported every detected bootloader configuration in the system check.
+
+PIS 0.4.5 - 2026-11-15
+
+* Added an explicit legacy-BIOS LILO memory mode for 32-bit systems.
+* Added compact initrd generation without optional filesystem repair tools.
+* Required LILO to confirm low-memory initrd placement before installing the boot map.
+
+PIS 0.4.4 - 2026-11-15
+
+* Preserved existing PIS-managed LILO entries as preselected checklist items.
+* Clarified that the checklist represents the complete published kernel set.
+* Distinguished SMP and non-SMP kernels and marked the running flavor as recommended.
+
+PIS 0.4.3 - 2026-11-14
+
+* Delegated initrd creation directly to Slackware's command generator pipeline.
+* Added matching kernel module checks before generic kernel publication.
+* Added gzip validation and persistent mkinitrd diagnostic logs.
+
+PIS 0.4.2 - 2026-11-14
+
+* Kept mkinitrd status output out of generated LILO configuration files.
+
+PIS 0.4.1 - 2026-11-14
+
+* Fixed Slackware x86 SMP kernel version detection for initrd generation.
+* Preserved the root device already validated in lilo.conf.
+* Added detailed LILO validation logs and retained failed candidate files.
+
+PIS 0.4.0 - 2026-11-14
+
+* Added Slackware 15.0 and current detection from slackpkg and system data.
+* Added x86 and x86_64 mirror and repository selection.
+* Enabled AlienBOB and restricted repositories for all supported combinations.
+* Limited multilib choices to x86_64 and stable-only binaries to Slackware 15.0.
+* Added ELILO, LILO and GRUB bootloader detection and kernel publication.
+* Expanded regression tests to cover the four release/architecture combinations.
+
 PIS 0.3.0 - 2026-11-07
 
 * Installed the shared shell library in /usr/lib{64}/pis instead of /sbin.

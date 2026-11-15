@@ -1,0 +1,13 @@
+#!/bin/bash
+target=""
+for argument in "$@"; do
+    case "$argument" in --target=*) target="${argument#--target=}" ;; esac
+done
+case "$target" in
+    fs_uuid) printf 'TEST-BOOT-UUID\n' ;;
+    fs) printf 'xfs\n' ;;
+    hints_string) printf '%s\n' '--hint-bios=hd0,msdos1' ;;
+    partmap) printf 'msdos\n' ;;
+    abstraction) : ;;
+    *) exit 1 ;;
+esac
